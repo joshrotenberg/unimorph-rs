@@ -1,0 +1,14 @@
+# cargo-audit configuration
+# https://github.com/rustsec/rustsec/tree/main/cargo-audit
+
+[advisories]
+# Advisories to ignore (with justification)
+ignore = [
+    # rkyv vulnerability in Arc/Rc on OOM - only affects unimorph-bench via duckdb
+    # The bench crate is not shipped and OOM conditions are not a concern for benchmarks
+    "RUSTSEC-2026-0001",
+
+    # number_prefix unmaintained - only affects unimorph-bench/unimorph-cli via indicatif
+    # This is a warning about maintenance, not a security vulnerability
+    "RUSTSEC-2025-0119",
+]
