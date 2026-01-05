@@ -13,8 +13,8 @@ use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use commands::{
-    ExportFormat, cmd_analyze, cmd_delete, cmd_download, cmd_export, cmd_inflect, cmd_list,
-    cmd_search, cmd_stats,
+    ExportFormat, cmd_analyze, cmd_delete, cmd_download, cmd_export, cmd_inflect, cmd_info,
+    cmd_list, cmd_search, cmd_stats, cmd_update,
 };
 
 #[derive(Parser)]
@@ -178,6 +178,36 @@ enum Commands {
         /// Shell to generate completions for
         shell: Shell,
     },
+
+    /// Show detailed info about a cached language
+    Info {
+        /// Language code
+        #[arg(short, long)]
+        lang: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Update cached language datasets
+    Update {
+        /// Language code (omit for --all)
+        #[arg(short, long)]
+        lang: Option<String>,
+
+        /// Update all cached languages
+        #[arg(long)]
+        all: bool,
+
+        /// Check for updates without downloading
+        #[arg(long)]
+        check: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn init_tracing(verbose: u8) {
@@ -269,5 +299,12 @@ async fn main() -> Result<()> {
             generate(shell, &mut cmd, "unimorph", &mut io::stdout());
             Ok(())
         }
+        Commands::Info { lang, json } => cmd_info(&lang, json, cli.data_dir.as_deref()).await,
+        Commands::Update {
+            lang,
+            all,
+            check,
+            json,
+        } => cmd_update(lang.as_deref(), all, check, json, cli.data_dir.as_deref()).await,
     }
 }
