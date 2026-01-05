@@ -15,10 +15,12 @@ path = "src/main.rs"
 [dependencies]
 unimorph-core = { path = "../unimorph-core" }
 clap.workspace = true
-anyhow.workspace = true
 tokio.workspace = true
 indicatif.workspace = true
 serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+color-eyre.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"

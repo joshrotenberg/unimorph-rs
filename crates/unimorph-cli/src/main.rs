@@ -1,8 +1,12 @@
 //! UniMorph CLI - Command-line interface for UniMorph morphological data.
 
-use anyhow::{Context, Result};
+use std::io::{self, IsTerminal};
+
 use clap::{Parser, Subcommand};
+use color_eyre::eyre::{Context, ContextCompat, Result, eyre};
 use indicatif::{ProgressBar, ProgressStyle};
+use tracing::{debug, info, instrument};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use unimorph_core::Repository;
 
@@ -10,6 +14,14 @@ use unimorph_core::Repository;
 #[command(name = "unimorph")]
 #[command(author, version, about = "Work with UniMorph morphological data", long_about = None)]
 struct Cli {
+    /// Enable verbose output (-v for debug, -vv for trace)
+    #[arg(short, long, action = clap::ArgAction::Count, global = true)]
+    verbose: u8,
+
+    /// Suppress non-essential output
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -85,12 +97,37 @@ enum Commands {
     },
 }
 
+fn init_tracing(verbose: u8) {
+    let filter = match verbose {
+        0 => EnvFilter::new("warn"),
+        1 => EnvFilter::new("info,unimorph_core=debug,unimorph_cli=debug"),
+        _ => EnvFilter::new("debug,unimorph_core=trace,unimorph_cli=trace"),
+    };
+
+    // Use RUST_LOG env var if set, otherwise use verbose flag
+    let filter = EnvFilter::try_from_default_env().unwrap_or(filter);
+
+    tracing_subscriber::registry()
+        .with(fmt::layer().with_target(verbose > 1))
+        .with(filter)
+        .init();
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let cli = Cli::parse();
+    init_tracing(cli.verbose);
+
+    debug!(
+        verbose = cli.verbose,
+        quiet = cli.quiet,
+        "starting unimorph CLI"
+    );
 
     match cli.command {
-        Commands::Download { lang, force } => cmd_download(&lang, force).await,
+        Commands::Download { lang, force } => cmd_download(&lang, force, cli.quiet).await,
         Commands::List { cached } => cmd_list(cached),
         Commands::Inflect {
             lang,
@@ -104,34 +141,102 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn cmd_download(lang: &str, force: bool) -> Result<()> {
+/// Validate a language code and provide helpful error messages.
+fn validate_lang_code(lang: &str) -> Result<()> {
+    if lang.len() != 3 {
+        return Err(eyre!(
+            "Invalid language code: '{}'\n\n\
+            Language codes must be exactly 3 lowercase letters (ISO 639-3).\n\
+            Examples: ita (Italian), deu (German), fin (Finnish)\n\n\
+            See https://iso639-3.sil.org/code_tables/639/data for the full list.",
+            lang
+        ));
+    }
+
+    if !lang.chars().all(|c| c.is_ascii_lowercase()) {
+        let suggestion = lang.to_lowercase();
+        return Err(eyre!(
+            "Invalid language code: '{}'\n\n\
+            Language codes must be lowercase. Did you mean '{}'?",
+            lang,
+            suggestion
+        ));
+    }
+
+    Ok(())
+}
+
+/// Check if a language is downloaded, with a helpful error if not.
+fn require_language(repo: &Repository, lang: &str) -> Result<()> {
+    if !repo.store().has_language(lang)? {
+        return Err(eyre!(
+            "Language '{}' is not downloaded.\n\n\
+            To download it, run:\n\
+            \n    unimorph download -l {}\n\n\
+            To see what's cached:\n\
+            \n    unimorph list --cached",
+            lang,
+            lang
+        ));
+    }
+    Ok(())
+}
+
+#[instrument(skip_all, fields(lang, force))]
+async fn cmd_download(lang: &str, force: bool, quiet: bool) -> Result<()> {
+    validate_lang_code(lang)?;
+
     let mut repo = Repository::new().context("Failed to initialize repository")?;
 
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .expect("valid template"),
-    );
-    pb.set_message(format!("Downloading {}...", lang));
-    pb.enable_steady_tick(std::time::Duration::from_millis(100));
-
-    let downloaded = if force {
-        repo.refresh(lang).await.context("Download failed")?;
-        true
+    let is_terminal = io::stdout().is_terminal();
+    let pb = if !quiet && is_terminal {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .expect("valid template"),
+        );
+        pb.set_message(format!("Downloading {}...", lang));
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        Some(pb)
     } else {
-        repo.ensure(lang).await.context("Download failed")?
+        None
     };
 
-    pb.finish_and_clear();
+    let downloaded = if force {
+        repo.refresh(lang)
+            .await
+            .context(format!("Failed to download '{}'", lang))?;
+        true
+    } else {
+        repo.ensure(lang)
+            .await
+            .context(format!("Failed to download '{}'", lang))?
+    };
+
+    if let Some(pb) = pb {
+        pb.finish_and_clear();
+    }
 
     if downloaded {
-        let stats = repo.store().stats(lang)?.context("Failed to get stats")?;
-        println!(
-            "Downloaded {}: {} entries, {} lemmas, {} forms",
-            lang, stats.total_entries, stats.unique_lemmas, stats.unique_forms
+        let stats = repo
+            .store()
+            .stats(lang)?
+            .context("Failed to retrieve stats after download")?;
+        info!(
+            lang,
+            entries = stats.total_entries,
+            lemmas = stats.unique_lemmas,
+            forms = stats.unique_forms,
+            "download complete"
         );
-    } else {
+        if !quiet {
+            println!(
+                "Downloaded {}: {} entries, {} lemmas, {} forms",
+                lang, stats.total_entries, stats.unique_lemmas, stats.unique_forms
+            );
+        }
+    } else if !quiet {
         println!("{} is already cached. Use --force to re-download.", lang);
     }
 
@@ -144,7 +249,14 @@ fn cmd_list(cached: bool) -> Result<()> {
     if cached {
         let langs = repo.cached_languages()?;
         if langs.is_empty() {
-            println!("No languages cached. Use 'unimorph download -l <lang>' to download.");
+            println!("No languages cached.");
+            println!();
+            println!("To download a language:");
+            println!("  unimorph download -l <lang>");
+            println!();
+            println!("Examples:");
+            println!("  unimorph download -l ita   # Italian");
+            println!("  unimorph download -l deu   # German");
         } else {
             println!("Cached languages:");
             for lang in langs {
@@ -157,7 +269,6 @@ fn cmd_list(cached: bool) -> Result<()> {
             }
         }
     } else {
-        // TODO: Fetch available languages from GitHub API
         println!("Available languages: https://github.com/unimorph");
         println!();
         println!("Common languages:");
@@ -176,16 +287,12 @@ fn cmd_list(cached: bool) -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip_all, fields(lang, lemma))]
 fn cmd_inflect(lang: &str, lemma: &str, features: Option<&str>, json: bool) -> Result<()> {
-    let repo = Repository::new().context("Failed to initialize repository")?;
+    validate_lang_code(lang)?;
 
-    if !repo.store().has_language(lang)? {
-        anyhow::bail!(
-            "Language '{}' not found. Download it first with: unimorph download -l {}",
-            lang,
-            lang
-        );
-    }
+    let repo = Repository::new().context("Failed to initialize repository")?;
+    require_language(&repo, lang)?;
 
     let entries = repo.store().inflect(lang, lemma)?;
 
@@ -199,14 +306,23 @@ fn cmd_inflect(lang: &str, lemma: &str, features: Option<&str>, json: bool) -> R
         entries
     };
 
+    debug!(count = entries.len(), "found forms");
+
     if entries.is_empty() {
         if features.is_some() {
             println!(
                 "No forms found for '{}' matching the feature pattern.",
                 lemma
             );
+            println!();
+            println!(
+                "Tip: Use 'unimorph inflect -l {} {}' without --features to see all forms.",
+                lang, lemma
+            );
         } else {
             println!("No forms found for '{}'.", lemma);
+            println!();
+            println!("The lemma may not exist in the dataset, or it might be spelled differently.");
         }
         return Ok(());
     }
@@ -226,21 +342,24 @@ fn cmd_inflect(lang: &str, lemma: &str, features: Option<&str>, json: bool) -> R
     Ok(())
 }
 
+#[instrument(skip_all, fields(lang, form))]
 fn cmd_analyze(lang: &str, form: &str, json: bool) -> Result<()> {
-    let repo = Repository::new().context("Failed to initialize repository")?;
+    validate_lang_code(lang)?;
 
-    if !repo.store().has_language(lang)? {
-        anyhow::bail!(
-            "Language '{}' not found. Download it first with: unimorph download -l {}",
-            lang,
-            lang
-        );
-    }
+    let repo = Repository::new().context("Failed to initialize repository")?;
+    require_language(&repo, lang)?;
 
     let entries = repo.store().analyze(lang, form)?;
 
+    debug!(count = entries.len(), "found analyses");
+
     if entries.is_empty() {
         println!("No analyses found for '{}'.", form);
+        println!();
+        println!("The form may not exist in the dataset, or it could be:");
+        println!("  - A proper noun or foreign word");
+        println!("  - A misspelling");
+        println!("  - A rare or archaic form");
         return Ok(());
     }
 
@@ -259,18 +378,17 @@ fn cmd_analyze(lang: &str, form: &str, json: bool) -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip_all, fields(lang))]
 fn cmd_stats(lang: &str, json: bool) -> Result<()> {
+    validate_lang_code(lang)?;
+
     let repo = Repository::new().context("Failed to initialize repository")?;
+    require_language(&repo, lang)?;
 
-    if !repo.store().has_language(lang)? {
-        anyhow::bail!(
-            "Language '{}' not found. Download it first with: unimorph download -l {}",
-            lang,
-            lang
-        );
-    }
-
-    let stats = repo.store().stats(lang)?.context("Failed to get stats")?;
+    let stats = repo
+        .store()
+        .stats(lang)?
+        .context("Failed to retrieve statistics")?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&stats)?);
@@ -289,7 +407,10 @@ fn cmd_stats(lang: &str, json: bool) -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip_all, fields(lang))]
 fn cmd_delete(lang: &str) -> Result<()> {
+    validate_lang_code(lang)?;
+
     let mut repo = Repository::new().context("Failed to initialize repository")?;
 
     if !repo.store().has_language(lang)? {
@@ -298,6 +419,7 @@ fn cmd_delete(lang: &str) -> Result<()> {
     }
 
     repo.delete(lang)?;
+    info!(lang, "deleted language");
     println!("Deleted {}.", lang);
 
     Ok(())

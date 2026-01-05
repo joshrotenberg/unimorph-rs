@@ -33,3 +33,10 @@ anyhow = "1"
 # Utilities
 dirs = "6"
 indicatif = "0.17"
+
+# Tracing/logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Better errors
+color-eyre = "0.6"
