@@ -189,12 +189,13 @@ mod list_command {
     use super::*;
 
     #[test]
-    fn list_shows_available_info() {
+    fn list_shows_cached_by_default() {
+        // Default behavior now shows cached languages or helpful info
         unimorph()
             .arg("list")
             .assert()
             .success()
-            .stdout(predicate::str::contains("github.com/unimorph"));
+            .stdout(predicate::str::contains("list --available"));
     }
 
     #[test]

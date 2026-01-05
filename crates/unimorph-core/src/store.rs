@@ -24,7 +24,8 @@
 //!     unique_forms INTEGER,
 //!     unique_features INTEGER,
 //!     imported_at TEXT,
-//!     source_url TEXT
+//!     source_url TEXT,
+//!     commit_sha TEXT
 //! );
 //! ```
 
@@ -103,7 +104,8 @@ impl Store {
                 unique_forms INTEGER NOT NULL,
                 unique_features INTEGER NOT NULL,
                 imported_at TEXT NOT NULL,
-                source_url TEXT
+                source_url TEXT,
+                commit_sha TEXT
             );
             ",
         )?;
@@ -119,6 +121,7 @@ impl Store {
         lang: &LangCode,
         entries: &[Entry],
         source_url: Option<&str>,
+        commit_sha: Option<&str>,
     ) -> Result<()> {
         let tx = self.conn.transaction()?;
 
@@ -146,8 +149,8 @@ impl Store {
         let now = chrono_lite_now();
 
         tx.execute(
-            "INSERT INTO meta (lang, entry_count, unique_lemmas, unique_forms, unique_features, imported_at, source_url)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO meta (lang, entry_count, unique_lemmas, unique_forms, unique_features, imported_at, source_url, commit_sha)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 lang.as_str(),
                 stats.total_entries as i64,
@@ -156,6 +159,7 @@ impl Store {
                 stats.unique_features as i64,
                 now,
                 source_url,
+                commit_sha,
             ],
         )?;
 
@@ -346,6 +350,21 @@ impl Store {
             Err(e) => Err(e.into()),
         }
     }
+
+    /// Get the commit SHA for a language (if stored).
+    pub fn commit_sha(&self, lang: &str) -> Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT commit_sha FROM meta WHERE lang = ?")?;
+
+        let result = stmt.query_row(params![lang], |row| row.get::<_, Option<String>>(0));
+
+        match result {
+            Ok(sha) => Ok(sha),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 /// Simple timestamp without pulling in chrono.
@@ -387,7 +406,7 @@ mod tests {
         let lang: LangCode = "ita".parse().unwrap();
         let entries = sample_entries();
 
-        store.import(&lang, &entries, None).unwrap();
+        store.import(&lang, &entries, None, None).unwrap();
 
         let stats = store.stats("ita").unwrap().unwrap();
         assert_eq!(stats.total_entries, 6);
@@ -399,7 +418,7 @@ mod tests {
     fn inflect() {
         let mut store = Store::in_memory().unwrap();
         let lang: LangCode = "ita".parse().unwrap();
-        store.import(&lang, &sample_entries(), None).unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
 
         let forms = store.inflect("ita", "parlare").unwrap();
         assert_eq!(forms.len(), 3);
@@ -412,7 +431,7 @@ mod tests {
     fn analyze() {
         let mut store = Store::in_memory().unwrap();
         let lang: LangCode = "ita".parse().unwrap();
-        store.import(&lang, &sample_entries(), None).unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
 
         let analyses = store.analyze("ita", "sono").unwrap();
         assert_eq!(analyses.len(), 1);
@@ -426,8 +445,8 @@ mod tests {
         let ita: LangCode = "ita".parse().unwrap();
         let deu: LangCode = "deu".parse().unwrap();
 
-        store.import(&ita, &sample_entries(), None).unwrap();
-        store.import(&deu, &[], None).unwrap();
+        store.import(&ita, &sample_entries(), None, None).unwrap();
+        store.import(&deu, &[], None, None).unwrap();
 
         let langs = store.languages().unwrap();
         assert_eq!(langs.len(), 2);
@@ -441,7 +460,7 @@ mod tests {
         let lang: LangCode = "ita".parse().unwrap();
 
         assert!(!store.has_language("ita").unwrap());
-        store.import(&lang, &sample_entries(), None).unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
         assert!(store.has_language("ita").unwrap());
     }
 
@@ -450,7 +469,7 @@ mod tests {
         let mut store = Store::in_memory().unwrap();
         let lang: LangCode = "ita".parse().unwrap();
 
-        store.import(&lang, &sample_entries(), None).unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
         assert!(store.has_language("ita").unwrap());
 
         store.delete_language("ita").unwrap();
@@ -461,7 +480,7 @@ mod tests {
     fn search_features() {
         let mut store = Store::in_memory().unwrap();
         let lang: LangCode = "ita".parse().unwrap();
-        store.import(&lang, &sample_entries(), None).unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
 
         // Search for first person singular verbs
         let results = store.search_features("ita", "V;IND;PRS;1;SG").unwrap();
@@ -477,12 +496,12 @@ mod tests {
         let mut store = Store::in_memory().unwrap();
         let lang: LangCode = "ita".parse().unwrap();
 
-        store.import(&lang, &sample_entries(), None).unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
         assert_eq!(store.stats("ita").unwrap().unwrap().total_entries, 6);
 
         // Import fewer entries
         let fewer = vec![Entry::parse_line("parlare\tparlo\tV;IND;PRS;1;SG", 1).unwrap()];
-        store.import(&lang, &fewer, None).unwrap();
+        store.import(&lang, &fewer, None, None).unwrap();
         assert_eq!(store.stats("ita").unwrap().unwrap().total_entries, 1);
     }
 }

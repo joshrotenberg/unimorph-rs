@@ -129,6 +129,10 @@ impl Repository {
     /// Download and import a language dataset.
     #[instrument(level = "debug", skip(self))]
     async fn download_and_import(&mut self, lang: &LangCode) -> Result<()> {
+        // Fetch commit SHA first
+        let commit_sha = fetch_commit_sha(lang).await.ok();
+        debug!(lang = %lang, commit_sha = ?commit_sha, "fetched commit SHA");
+
         let content = download_language(lang).await?;
         let (entries, skipped) = Entry::parse_tsv_lenient(&content);
 
@@ -148,10 +152,12 @@ impl Repository {
 
         let source_url = format!("https://github.com/unimorph/{}", lang.as_str());
 
-        self.store.import(lang, &entries, Some(&source_url))?;
+        self.store
+            .import(lang, &entries, Some(&source_url), commit_sha.as_deref())?;
         info!(
             lang = %lang,
             entries = entries.len(),
+            commit_sha = ?commit_sha,
             "imported language dataset"
         );
         Ok(())
@@ -233,6 +239,45 @@ async fn download_language(lang: &LangCode) -> Result<String> {
     }
 
     Ok(all_content)
+}
+
+/// Fetch the latest commit SHA for a language repository.
+#[instrument(level = "debug")]
+async fn fetch_commit_sha(lang: &LangCode) -> Result<String> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "https://api.github.com/repos/unimorph/{}/commits/master",
+        lang.as_str()
+    );
+
+    debug!(url = %url, "fetching commit SHA");
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", "unimorph-rs")
+        .header("Accept", "application/vnd.github.v3+json")
+        .send()
+        .await?;
+
+    if response.status() == reqwest::StatusCode::FORBIDDEN {
+        return Err(Error::RateLimited);
+    }
+
+    if !response.status().is_success() {
+        return Err(Error::DownloadFailed(format!(
+            "Failed to fetch commit info: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let json: serde_json::Value = response.json().await?;
+    let sha = json["sha"]
+        .as_str()
+        .ok_or_else(|| Error::DownloadFailed("No SHA in commit response".to_string()))?
+        .to_string();
+
+    debug!(sha = %sha, "fetched commit SHA");
+    Ok(sha)
 }
 
 #[cfg(test)]

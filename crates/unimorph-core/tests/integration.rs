@@ -38,7 +38,7 @@ fn setup_store_with_data(data: &str, lang: &str) -> (TempDir, Store) {
 
     let entries = Entry::parse_tsv(data).unwrap();
     let lang_code = LangCode::new(lang).unwrap();
-    store.import(&lang_code, &entries, None).unwrap();
+    store.import(&lang_code, &entries, None, None).unwrap();
 
     (temp_dir, store)
 }
@@ -101,12 +101,12 @@ mod store_integration {
         // Import Italian
         let ita_entries = Entry::parse_tsv(SAMPLE_ITA_DATA).unwrap();
         let ita = LangCode::new("ita").unwrap();
-        store.import(&ita, &ita_entries, None).unwrap();
+        store.import(&ita, &ita_entries, None, None).unwrap();
 
         // Import German
         let deu_entries = Entry::parse_tsv(SAMPLE_DEU_DATA).unwrap();
         let deu = LangCode::new("deu").unwrap();
-        store.import(&deu, &deu_entries, None).unwrap();
+        store.import(&deu, &deu_entries, None, None).unwrap();
 
         // Italian queries don't return German data
         let ita_forms = store.inflect("ita", "Haus").unwrap();
@@ -156,7 +156,7 @@ mod store_integration {
 
         let entries = Entry::parse_tsv(SAMPLE_ITA_DATA).unwrap();
         let lang = LangCode::new("ita").unwrap();
-        store.import(&lang, &entries, None).unwrap();
+        store.import(&lang, &entries, None, None).unwrap();
 
         assert!(store.has_language("ita").unwrap());
         assert_eq!(store.stats("ita").unwrap().unwrap().total_entries, 12);
@@ -178,12 +178,12 @@ mod store_integration {
 
         // First import
         let entries1 = Entry::parse_tsv(SAMPLE_ITA_DATA).unwrap();
-        store.import(&lang, &entries1, None).unwrap();
+        store.import(&lang, &entries1, None, None).unwrap();
         assert_eq!(store.stats("ita").unwrap().unwrap().total_entries, 12);
 
         // Second import with different data
         let entries2 = Entry::parse_tsv("nuovo\tnuova\tADJ;FEM;SG\n").unwrap();
-        store.import(&lang, &entries2, None).unwrap();
+        store.import(&lang, &entries2, None, None).unwrap();
         assert_eq!(store.stats("ita").unwrap().unwrap().total_entries, 1);
 
         // Old data is gone

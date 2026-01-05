@@ -67,13 +67,18 @@ impl<'a> QueryBuilder<'a> {
 
     /// Filter by lemma (dictionary form).
     ///
-    /// This is an exact match. For partial matching, use SQL LIKE patterns
-    /// directly via the store.
+    /// Supports SQL LIKE wildcards: `%` matches any sequence of characters,
+    /// `_` matches any single character. If no wildcards are present,
+    /// performs an exact match.
     ///
     /// # Example
     ///
     /// ```ignore
+    /// // Exact match
     /// let forms = store.query("ita").lemma("parlare").execute()?;
+    ///
+    /// // Wildcard match - all lemmas starting with "parl"
+    /// let forms = store.query("ita").lemma("parl%").execute()?;
     /// ```
     pub fn lemma(mut self, lemma: &str) -> Self {
         self.lemma = Some(lemma.to_string());
@@ -82,12 +87,18 @@ impl<'a> QueryBuilder<'a> {
 
     /// Filter by surface form.
     ///
-    /// This is an exact match. Useful for reverse lookups (analyze).
+    /// Supports SQL LIKE wildcards: `%` matches any sequence of characters,
+    /// `_` matches any single character. If no wildcards are present,
+    /// performs an exact match (useful for reverse lookups/analyze).
     ///
     /// # Example
     ///
     /// ```ignore
+    /// // Exact match
     /// let analyses = store.query("ita").form("parlo").execute()?;
+    ///
+    /// // Wildcard match - all forms ending with "ando"
+    /// let forms = store.query("ita").form("%ando").execute()?;
     /// ```
     pub fn form(mut self, form: &str) -> Self {
         self.form = Some(form.to_string());
@@ -191,12 +202,20 @@ impl<'a> QueryBuilder<'a> {
 
         // Build WHERE clauses
         if let Some(ref lemma) = self.lemma {
-            sql.push_str(" AND lemma = ?");
+            if lemma.contains('%') || lemma.contains('_') {
+                sql.push_str(" AND lemma LIKE ?");
+            } else {
+                sql.push_str(" AND lemma = ?");
+            }
             params_vec.push(Box::new(lemma.clone()));
         }
 
         if let Some(ref form) = self.form {
-            sql.push_str(" AND form = ?");
+            if form.contains('%') || form.contains('_') {
+                sql.push_str(" AND form LIKE ?");
+            } else {
+                sql.push_str(" AND form = ?");
+            }
             params_vec.push(Box::new(form.clone()));
         }
 
@@ -286,12 +305,20 @@ impl<'a> QueryBuilder<'a> {
             let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(self.lang.clone())];
 
             if let Some(ref lemma) = self.lemma {
-                sql.push_str(" AND lemma = ?");
+                if lemma.contains('%') || lemma.contains('_') {
+                    sql.push_str(" AND lemma LIKE ?");
+                } else {
+                    sql.push_str(" AND lemma = ?");
+                }
                 params_vec.push(Box::new(lemma.clone()));
             }
 
             if let Some(ref form) = self.form {
-                sql.push_str(" AND form = ?");
+                if form.contains('%') || form.contains('_') {
+                    sql.push_str(" AND form LIKE ?");
+                } else {
+                    sql.push_str(" AND form = ?");
+                }
                 params_vec.push(Box::new(form.clone()));
             }
 
@@ -340,7 +367,7 @@ mod tests {
             crate::Entry::parse_line("casa\tcase\tN;PL", 11).unwrap(),
         ];
 
-        store.import(&lang, &entries, None).unwrap();
+        store.import(&lang, &entries, None, None).unwrap();
         store
     }
 
@@ -352,11 +379,31 @@ mod tests {
     }
 
     #[test]
+    fn query_by_lemma_like() {
+        let store = setup_store();
+        // Prefix match
+        let results = store.query("ita").lemma("parl%").execute().unwrap();
+        assert_eq!(results.len(), 7); // all parlare forms
+
+        // All lemmas starting with 'e'
+        let results = store.query("ita").lemma("e%").execute().unwrap();
+        assert_eq!(results.len(), 2); // essere forms
+    }
+
+    #[test]
     fn query_by_form() {
         let store = setup_store();
         let results = store.query("ita").form("sono").execute().unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].lemma, "essere");
+    }
+
+    #[test]
+    fn query_by_form_like() {
+        let store = setup_store();
+        // Suffix match - forms ending in "o"
+        let results = store.query("ita").form("%o").execute().unwrap();
+        assert_eq!(results.len(), 5); // parlo, parli(amo), parlano, parlavo, sono
     }
 
     #[test]
