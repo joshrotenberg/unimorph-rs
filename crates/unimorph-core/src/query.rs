@@ -367,7 +367,7 @@ mod tests {
             crate::Entry::parse_line("casa\tcase\tN;PL", 11).unwrap(),
         ];
 
-        store.import(&lang, &entries, None).unwrap();
+        store.import(&lang, &entries, None, None).unwrap();
         store
     }
 

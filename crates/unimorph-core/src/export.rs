@@ -310,7 +310,7 @@ mod tests {
             Entry::parse_line("essere\tsei\tV;IND;PRS;2;SG", 5).unwrap(),
         ];
 
-        store.import(&lang, &entries, None).unwrap();
+        store.import(&lang, &entries, None, None).unwrap();
         (store, temp_dir)
     }
 

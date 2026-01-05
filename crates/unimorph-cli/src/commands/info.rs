@@ -18,25 +18,34 @@ fn format_timestamp(ts: &str) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-/// Parse a Unix timestamp string into a DateTime.
-fn parse_timestamp(ts: &str) -> Option<chrono::DateTime<Utc>> {
-    ts.parse::<i64>()
-        .ok()
-        .and_then(|ts| Utc.timestamp_opt(ts, 0).single())
-}
-
-/// Fetch the last pushed timestamp for a language repo from GitHub.
-async fn fetch_repo_pushed_at(lang: &str) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
-    debug!(lang, "fetching repo info from GitHub");
+/// Fetch the latest commit info for a language repo from GitHub.
+async fn fetch_remote_commit(lang: &str) -> Result<(String, chrono::DateTime<Utc>)> {
+    debug!(lang, "fetching commit info from GitHub");
 
     let octocrab = octocrab::instance();
-    let repo = octocrab
+    let commits = octocrab
         .repos("unimorph", lang)
-        .get()
+        .list_commits()
+        .per_page(1)
+        .send()
         .await
-        .context("Failed to fetch repo info from GitHub")?;
+        .context("Failed to fetch commits from GitHub")?;
 
-    Ok(repo.pushed_at)
+    let commit = commits
+        .items
+        .first()
+        .context("No commits found in repository")?;
+
+    let sha = commit.sha.clone();
+    let date = commit
+        .commit
+        .committer
+        .as_ref()
+        .and_then(|c| c.date.as_ref())
+        .context("No commit date found")?;
+
+    debug!(sha = %sha, date = %date, "fetched remote commit info");
+    Ok((sha, *date))
 }
 
 #[derive(Serialize)]
@@ -44,7 +53,9 @@ struct InfoOutput {
     language: String,
     source: String,
     imported_at: Option<String>,
-    remote_updated_at: Option<String>,
+    local_commit: Option<String>,
+    remote_commit: Option<String>,
+    remote_commit_date: Option<String>,
     update_available: bool,
     stats: StatsOutput,
 }
@@ -70,21 +81,20 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
         .context("Failed to retrieve statistics")?;
 
     let imported_at = repo.store().imported_at(lang)?;
+    let local_commit = repo.store().commit_sha(lang)?;
     let source = format!("https://github.com/unimorph/{}", lang);
 
-    // Fetch remote info
-    let remote_pushed_at = fetch_repo_pushed_at(lang).await.ok().flatten();
+    // Fetch remote commit info
+    let remote_info = fetch_remote_commit(lang).await.ok();
+    let (remote_commit, remote_date) = match remote_info {
+        Some((sha, date)) => (Some(sha), Some(date)),
+        None => (None, None),
+    };
 
-    // Determine if update is available
-    let update_available = match (&imported_at, &remote_pushed_at) {
-        (Some(local), Some(remote)) => {
-            // Parse local timestamp (Unix timestamp) and compare
-            if let Some(local_dt) = parse_timestamp(local) {
-                remote > &local_dt
-            } else {
-                false
-            }
-        }
+    // Determine if update is available by comparing commit SHAs
+    let update_available = match (&local_commit, &remote_commit) {
+        (Some(local), Some(remote)) => local != remote,
+        (None, Some(_)) => true, // No local SHA stored, assume update available
         _ => false,
     };
 
@@ -93,7 +103,9 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
             language: lang.to_string(),
             source,
             imported_at: imported_at.as_ref().map(|ts| format_timestamp(ts)),
-            remote_updated_at: remote_pushed_at
+            local_commit,
+            remote_commit: remote_commit.clone(),
+            remote_commit_date: remote_date
                 .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string()),
             update_available,
             stats: StatsOutput {
@@ -112,20 +124,22 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
         if let Some(ref local) = imported_at {
             println!("Local imported:  {}", format_timestamp(local));
         }
-        if let Some(remote) = remote_pushed_at {
-            println!(
-                "Remote updated:  {}",
-                remote.format("%Y-%m-%d %H:%M:%S UTC")
-            );
+        if let Some(ref sha) = local_commit {
+            println!("Local commit:    {}", &sha[..7.min(sha.len())]);
+        }
+        if let Some(ref sha) = remote_commit {
+            let date_str = remote_date
+                .map(|d| d.format(" (%Y-%m-%d)").to_string())
+                .unwrap_or_default();
+            println!("Remote commit:   {}{}", &sha[..7.min(sha.len())], date_str);
         }
 
+        println!();
         if update_available {
-            println!();
             println!("Status: UPDATE AVAILABLE");
             println!();
             println!("Run 'unimorph update {}' to update.", lang);
         } else {
-            println!();
             println!("Status: Up to date");
         }
 
