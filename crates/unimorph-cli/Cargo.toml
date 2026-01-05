@@ -1,0 +1,21 @@
+[package]
+name = "unimorph-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line interface for UniMorph morphological data"
+keywords = ["linguistics", "morphology", "nlp", "unimorph", "cli"]
+categories = ["command-line-utilities", "science", "text-processing"]
+
+[[bin]]
+name = "unimorph"
+path = "src/main.rs"
+
+[dependencies]
+unimorph-core = { path = "../unimorph-core" }
+clap.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+indicatif.workspace = true
+serde_json.workspace = true
