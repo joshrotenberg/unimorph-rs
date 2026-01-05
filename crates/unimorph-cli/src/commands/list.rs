@@ -150,11 +150,11 @@ pub async fn cmd_list(
                 println!("No languages cached.");
                 println!();
                 println!("To download a language:");
-                println!("  unimorph download -l <lang>");
+                println!("  unimorph download <lang>");
                 println!();
                 println!("Examples:");
-                println!("  unimorph download -l heb   # Hebrew");
-                println!("  unimorph download -l vec   # Venetian");
+                println!("  unimorph download heb   # Hebrew");
+                println!("  unimorph download vec   # Venetian");
             }
         } else if json {
             let langs: Vec<_> = cached_langs.iter().collect();
@@ -220,35 +220,49 @@ pub async fn cmd_list(
                 }
             }
             println!();
-            println!("Use 'unimorph download -l <code>' to download a language.");
+            println!("Use 'unimorph download <code>' to download a language.");
             println!("Use 'unimorph list --refresh' to update this list.");
         }
         return Ok(());
     }
 
-    // Default: show helpful info
-    if json {
+    // Default: show cached languages (or helpful info if none cached)
+    if cached_langs.is_empty() {
+        // No languages cached - show helpful info
+        if json {
+            println!("[]");
+        } else {
+            println!("No languages cached yet.");
+            println!();
+            println!("To download a language:");
+            println!("  unimorph download <lang>");
+            println!();
+            println!("Examples:");
+            println!("  unimorph download heb   # Hebrew");
+            println!("  unimorph download vec   # Venetian");
+            println!();
+            println!("To see all available languages:");
+            println!("  unimorph list --available");
+            println!();
+            println!("More info: https://github.com/unimorph");
+        }
+    } else if json {
         let langs: Vec<_> = cached_langs.iter().collect();
         println!("{}", serde_json::to_string_pretty(&langs)?);
     } else {
-        println!("UniMorph Languages");
-        println!();
-        if cached_langs.is_empty() {
-            println!("No languages cached yet.");
-        } else {
-            println!("Cached: {} language(s)", cached_langs.len());
+        println!("Cached languages:");
+        let mut langs: Vec<_> = cached_langs.iter().collect();
+        langs.sort();
+        for lang in langs {
+            let stats = repo.store().stats(lang)?;
+            if let Some(stats) = stats {
+                println!("  {} ({} entries)", lang, stats.total_entries);
+            } else {
+                println!("  {}", lang);
+            }
         }
         println!();
-        println!("Commands:");
-        println!("  unimorph list --cached      Show downloaded languages");
-        println!(
-            "  unimorph list --available   Show all available languages (fetches from GitHub)"
-        );
-        println!("  unimorph list --refresh     Refresh the available languages list");
-        println!();
-        println!("Common languages: heb, vec, ita, deu, spa, fra, fin, rus");
-        println!();
-        println!("More info: https://github.com/unimorph");
+        println!("Use 'unimorph list --available' to see all available languages.");
     }
 
     Ok(())

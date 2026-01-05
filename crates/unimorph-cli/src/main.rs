@@ -14,7 +14,7 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use commands::{
     ExportFormat, cmd_analyze, cmd_delete, cmd_download, cmd_export, cmd_inflect, cmd_info,
-    cmd_list, cmd_search, cmd_stats, cmd_update,
+    cmd_list, cmd_repair, cmd_search, cmd_stats, cmd_update,
 };
 
 #[derive(Parser)]
@@ -199,6 +199,17 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+
+    /// Repair or reset the local data store
+    Repair {
+        /// Clear cached API responses
+        #[arg(long)]
+        clear_cache: bool,
+
+        /// Clear all downloaded datasets (will need to re-download)
+        #[arg(long)]
+        clear_data: bool,
+    },
 }
 
 fn init_tracing(verbose: u8) {
@@ -297,5 +308,9 @@ async fn main() -> Result<()> {
             check,
             json,
         } => cmd_update(lang.as_deref(), all, check, json, cli.data_dir.as_deref()).await,
+        Commands::Repair {
+            clear_cache,
+            clear_data,
+        } => cmd_repair(clear_cache, clear_data, cli.data_dir.as_deref()),
     }
 }
