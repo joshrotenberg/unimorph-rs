@@ -2,11 +2,28 @@
 
 use std::path::Path;
 
+use chrono::{TimeZone, Utc};
 use color_eyre::eyre::{Context, ContextCompat, Result};
 use serde::Serialize;
 use tracing::{debug, instrument};
 
 use crate::util::{create_repo, require_language, validate_lang_code};
+
+/// Format a Unix timestamp string as a human-readable date.
+fn format_timestamp(ts: &str) -> String {
+    ts.parse::<i64>()
+        .ok()
+        .and_then(|ts| Utc.timestamp_opt(ts, 0).single())
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+/// Parse a Unix timestamp string into a DateTime.
+fn parse_timestamp(ts: &str) -> Option<chrono::DateTime<Utc>> {
+    ts.parse::<i64>()
+        .ok()
+        .and_then(|ts| Utc.timestamp_opt(ts, 0).single())
+}
 
 /// Fetch the last pushed timestamp for a language repo from GitHub.
 async fn fetch_repo_pushed_at(lang: &str) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
@@ -61,9 +78,9 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
     // Determine if update is available
     let update_available = match (&imported_at, &remote_pushed_at) {
         (Some(local), Some(remote)) => {
-            // Parse local timestamp and compare
-            if let Ok(local_dt) = chrono::DateTime::parse_from_rfc3339(local) {
-                remote > &local_dt.with_timezone(&chrono::Utc)
+            // Parse local timestamp (Unix timestamp) and compare
+            if let Some(local_dt) = parse_timestamp(local) {
+                remote > &local_dt
             } else {
                 false
             }
@@ -75,8 +92,9 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
         let output = InfoOutput {
             language: lang.to_string(),
             source,
-            imported_at: imported_at.clone(),
-            remote_updated_at: remote_pushed_at.map(|dt| dt.to_rfc3339()),
+            imported_at: imported_at.as_ref().map(|ts| format_timestamp(ts)),
+            remote_updated_at: remote_pushed_at
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string()),
             update_available,
             stats: StatsOutput {
                 total_entries: stats.total_entries,
@@ -92,17 +110,20 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
         println!();
 
         if let Some(ref local) = imported_at {
-            println!("Local imported:  {}", local);
+            println!("Local imported:  {}", format_timestamp(local));
         }
         if let Some(remote) = remote_pushed_at {
-            println!("Remote updated:  {}", remote.to_rfc3339());
+            println!(
+                "Remote updated:  {}",
+                remote.format("%Y-%m-%d %H:%M:%S UTC")
+            );
         }
 
         if update_available {
             println!();
             println!("Status: UPDATE AVAILABLE");
             println!();
-            println!("Run 'unimorph update -l {}' to update.", lang);
+            println!("Run 'unimorph update {}' to update.", lang);
         } else {
             println!();
             println!("Status: Up to date");

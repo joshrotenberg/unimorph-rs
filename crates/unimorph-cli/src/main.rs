@@ -123,7 +123,7 @@ enum Commands {
         #[arg(long)]
         lemma: Option<String>,
 
-        /// Filter by surface form
+        /// Filter by surface form (supports SQL LIKE wildcards: % and _)
         #[arg(long)]
         form: Option<String>,
 
