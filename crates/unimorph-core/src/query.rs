@@ -31,6 +31,7 @@
 
 use crate::{Entry, FeatureBundle, Result};
 use rusqlite::Connection;
+use tracing::{debug, instrument};
 
 /// A fluent query builder for UniMorph entries.
 ///
@@ -173,7 +174,18 @@ impl<'a> QueryBuilder<'a> {
     }
 
     /// Execute the query and return matching entries.
+    #[instrument(level = "debug", skip(self), fields(lang = %self.lang))]
     pub fn execute(self) -> Result<Vec<Entry>> {
+        debug!(
+            lemma = ?self.lemma,
+            form = ?self.form,
+            features_pattern = ?self.features_pattern,
+            features_contain = ?self.features_contain,
+            pos = ?self.pos,
+            limit = ?self.limit,
+            offset = ?self.offset,
+            "executing query"
+        );
         let mut sql = String::from("SELECT lemma, form, features FROM entries WHERE lang = ?");
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(self.lang.clone())];
 
@@ -251,6 +263,7 @@ impl<'a> QueryBuilder<'a> {
             })
             .collect();
 
+        debug!(count = entries.len(), "query returned entries");
         Ok(entries)
     }
 
