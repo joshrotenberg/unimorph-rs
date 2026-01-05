@@ -12,9 +12,14 @@ categories = ["command-line-utilities", "science", "text-processing"]
 name = "unimorph"
 path = "src/main.rs"
 
+[features]
+default = []
+parquet = ["unimorph-core/parquet"]
+
 [dependencies]
 unimorph-core = { path = "../unimorph-core" }
 clap.workspace = true
+clap_complete = "4"
 tokio.workspace = true
 indicatif.workspace = true
 serde_json.workspace = true
