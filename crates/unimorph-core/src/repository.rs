@@ -29,6 +29,8 @@
 
 use std::path::{Path, PathBuf};
 
+use tracing::{debug, info, instrument, warn};
+
 use crate::{Entry, Error, LangCode, Result, Store};
 
 const UNIMORPH_RAW_URL: &str = "https://raw.githubusercontent.com/unimorph";
@@ -48,6 +50,7 @@ impl Repository {
     /// - Linux: `~/.cache/unimorph/`
     /// - macOS: `~/Library/Caches/unimorph/`
     /// - Windows: `%LOCALAPPDATA%\unimorph\`
+    #[instrument(level = "debug")]
     pub fn new() -> Result<Self> {
         let cache_dir = dirs::cache_dir()
             .ok_or_else(|| Error::CacheDir {
@@ -56,6 +59,7 @@ impl Repository {
             })?
             .join("unimorph");
 
+        debug!(cache_dir = %cache_dir.display(), "using default cache directory");
         Self::with_cache_dir(cache_dir)
     }
 
@@ -97,13 +101,16 @@ impl Repository {
     /// 2. If not, download from GitHub and import
     ///
     /// Returns `true` if the dataset was downloaded, `false` if it was already cached.
+    #[instrument(level = "info", skip(self))]
     pub async fn ensure(&mut self, lang: &str) -> Result<bool> {
         let lang_code = LangCode::new(lang)?;
 
         if self.store.has_language(lang)? {
+            debug!(lang, "language already cached");
             return Ok(false);
         }
 
+        info!(lang, "downloading language dataset");
         self.download_and_import(&lang_code).await?;
         Ok(true)
     }
@@ -112,28 +119,41 @@ impl Repository {
     ///
     /// This will download the latest data from GitHub even if the language
     /// is already in the store.
+    #[instrument(level = "info", skip(self))]
     pub async fn refresh(&mut self, lang: &str) -> Result<()> {
         let lang_code = LangCode::new(lang)?;
+        info!(lang, "refreshing language dataset");
         self.download_and_import(&lang_code).await
     }
 
     /// Download and import a language dataset.
+    #[instrument(level = "debug", skip(self))]
     async fn download_and_import(&mut self, lang: &LangCode) -> Result<()> {
         let content = download_language(lang).await?;
         let (entries, skipped) = Entry::parse_tsv_lenient(&content);
 
         if skipped > 0 {
-            // Log but don't fail - real datasets have some malformed entries
-            eprintln!(
-                "Warning: skipped {} malformed entries for {}",
+            warn!(
+                lang = %lang,
                 skipped,
-                lang.as_str()
+                "skipped malformed entries during import"
             );
         }
+
+        debug!(
+            lang = %lang,
+            entries = entries.len(),
+            "parsed entries from downloaded data"
+        );
 
         let source_url = format!("https://github.com/unimorph/{}", lang.as_str());
 
         self.store.import(lang, &entries, Some(&source_url))?;
+        info!(
+            lang = %lang,
+            entries = entries.len(),
+            "imported language dataset"
+        );
         Ok(())
     }
 
@@ -162,23 +182,28 @@ fn get_file_patterns(lang: &LangCode) -> Vec<String> {
 }
 
 /// Download a language dataset from GitHub.
+#[instrument(level = "debug")]
 async fn download_language(lang: &LangCode) -> Result<String> {
     let client = reqwest::Client::new();
     let patterns = get_file_patterns(lang);
     let mut all_content = String::new();
     let mut found_any = false;
 
+    debug!(lang = %lang, patterns = ?patterns, "downloading from GitHub");
+
     for pattern in &patterns {
         let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), pattern);
 
+        debug!(url = %url, "fetching file");
         let response = client.get(&url).send().await?;
 
         if response.status() == reqwest::StatusCode::FORBIDDEN {
+            warn!(lang = %lang, "GitHub rate limit exceeded");
             return Err(Error::RateLimited);
         }
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            // Try without the pattern (some repos use different naming)
+            debug!(url = %url, "file not found, trying next pattern");
             continue;
         }
 
@@ -191,6 +216,8 @@ async fn download_language(lang: &LangCode) -> Result<String> {
         }
 
         let content = response.text().await?;
+        let bytes = content.len();
+        debug!(url = %url, bytes, "downloaded file");
         all_content.push_str(&content);
         if !content.ends_with('\n') {
             all_content.push('\n');

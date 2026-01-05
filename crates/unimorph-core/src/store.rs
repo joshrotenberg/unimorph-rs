@@ -31,6 +31,7 @@
 use std::path::Path;
 
 use rusqlite::{Connection, params};
+use tracing::{debug, instrument};
 
 use crate::{DatasetStats, Entry, FeatureBundle, LangCode, Result};
 
@@ -111,6 +112,7 @@ impl Store {
     /// Import entries for a language, replacing any existing data.
     ///
     /// This computes and caches statistics in the `meta` table.
+    #[instrument(level = "debug", skip(self, entries), fields(entry_count = entries.len()))]
     pub fn import(
         &mut self,
         lang: &LangCode,
@@ -164,6 +166,7 @@ impl Store {
     ///
     /// This is the "inflect" operation: given a lemma like "parlare",
     /// return all its forms (parlo, parli, parla, ...).
+    #[instrument(level = "debug", skip(self))]
     pub fn inflect(&self, lang: &str, lemma: &str) -> Result<Vec<Entry>> {
         let mut stmt = self
             .conn
@@ -192,6 +195,7 @@ impl Store {
     ///
     /// This is the "analyze" operation: given a form like "parlo",
     /// return all possible analyses (parlare -> parlo, ...).
+    #[instrument(level = "debug", skip(self))]
     pub fn analyze(&self, lang: &str, form: &str) -> Result<Vec<Entry>> {
         let mut stmt = self
             .conn
@@ -277,7 +281,9 @@ impl Store {
     ///
     /// For better performance on large datasets, consider using
     /// `inflect` or `analyze` first, then filtering the results.
+    #[instrument(level = "debug", skip(self))]
     pub fn search_features(&self, lang: &str, pattern: &str) -> Result<Vec<Entry>> {
+        debug!(pattern, "searching features with pattern");
         // Convert pattern to SQL LIKE pattern
         // V;IND;*;1;* -> V;IND;%;1;%
         let sql_pattern = pattern.replace('*', "%");
