@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Storage backend benchmarks for unimorph-rs"
+publish = false
 
 [dependencies]
 rusqlite.workspace = true
