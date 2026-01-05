@@ -1,0 +1,14 @@
+[workspace]
+# Use git-cliff for changelog generation
+changelog_config = "cliff.toml"
+# Create GitHub releases
+git_release_enable = true
+# Include commit body in release notes
+git_release_body = true
+
+# Don't publish the benchmark crate
+[[package]]
+name = "unimorph-bench"
+publish = false
+changelog_update = false
+git_release_enable = false
