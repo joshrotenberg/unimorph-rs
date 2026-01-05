@@ -13,6 +13,7 @@
 //! ```
 
 use std::path::Path;
+use tracing::{debug, instrument};
 
 #[cfg(test)]
 use crate::Entry;
@@ -60,7 +61,9 @@ mod parquet_export {
         /// let store = Store::open("datasets.db")?;
         /// store.export_parquet("ita", "italian.parquet")?;
         /// ```
+        #[instrument(level = "debug", skip(self, path), fields(lang = %lang))]
         pub fn export_parquet<P: AsRef<Path>>(&self, lang: &str, path: P) -> Result<usize> {
+            debug!(path = %path.as_ref().display(), "exporting to parquet");
             self.export_parquet_with_options(lang, path, ParquetExportOptions::default())
         }
 
@@ -77,12 +80,19 @@ mod parquet_export {
         /// };
         /// store.export_parquet_with_options("ita", "italian.parquet", options)?;
         /// ```
+        #[instrument(level = "debug", skip(self, path, options), fields(lang = %lang))]
         pub fn export_parquet_with_options<P: AsRef<Path>>(
             &self,
             lang: &str,
             path: P,
             options: ParquetExportOptions,
         ) -> Result<usize> {
+            debug!(
+                path = %path.as_ref().display(),
+                compression = ?options.compression,
+                batch_size = options.batch_size,
+                "exporting to parquet with options"
+            );
             // Define schema
             let schema = Arc::new(Schema::new(vec![
                 Field::new("lemma", DataType::Utf8, false),
@@ -185,6 +195,7 @@ mod parquet_export {
                 )))
             })?;
 
+            debug!(count = total_count, "parquet export complete");
             Ok(total_count)
         }
     }
@@ -205,8 +216,10 @@ impl Store {
     /// let store = Store::open("datasets.db")?;
     /// store.export_tsv("ita", "italian.tsv")?;
     /// ```
+    #[instrument(level = "debug", skip(self, path), fields(lang = %lang))]
     pub fn export_tsv<P: AsRef<Path>>(&self, lang: &str, path: P) -> Result<usize> {
         use std::io::Write;
+        debug!(path = %path.as_ref().display(), "exporting to TSV");
 
         let file = std::fs::File::create(path.as_ref())?;
         let mut writer = std::io::BufWriter::new(file);
@@ -228,6 +241,7 @@ impl Store {
         }
 
         writer.flush()?;
+        debug!(count, "TSV export complete");
         Ok(count)
     }
 
@@ -241,8 +255,10 @@ impl Store {
     /// let store = Store::open("datasets.db")?;
     /// store.export_jsonl("ita", "italian.jsonl")?;
     /// ```
+    #[instrument(level = "debug", skip(self, path), fields(lang = %lang))]
     pub fn export_jsonl<P: AsRef<Path>>(&self, lang: &str, path: P) -> Result<usize> {
         use std::io::Write;
+        debug!(path = %path.as_ref().display(), "exporting to JSONL");
 
         let file = std::fs::File::create(path.as_ref())?;
         let mut writer = std::io::BufWriter::new(file);
@@ -270,6 +286,7 @@ impl Store {
         }
 
         writer.flush()?;
+        debug!(count, "JSONL export complete");
         Ok(count)
     }
 }
