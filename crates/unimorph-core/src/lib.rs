@@ -41,14 +41,14 @@
 //! - **Parquet export**: For users who need DataFrame integration
 
 pub mod error;
+pub mod export;
 pub mod repository;
 pub mod store;
 pub mod types;
 
 pub use error::{Error, Result};
+#[cfg(feature = "parquet")]
+pub use export::ParquetExportOptions;
 pub use repository::Repository;
 pub use store::Store;
 pub use types::{DatasetStats, Entry, FeatureBundle, LangCode};
-
-// TODO: Uncomment as modules are implemented
-// pub mod query;
