@@ -1,8 +1,10 @@
 //! UniMorph CLI - Command-line interface for UniMorph morphological data.
 
 use std::io::{self, IsTerminal};
+use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap_complete::{Shell, generate};
 use color_eyre::eyre::{Context, ContextCompat, Result, eyre};
 use indicatif::{ProgressBar, ProgressStyle};
 use tracing::{debug, info, instrument};
@@ -22,8 +24,21 @@ struct Cli {
     #[arg(short, long, global = true)]
     quiet: bool,
 
+    /// Custom data directory (overrides UNIMORPH_DATA env var)
+    #[arg(short, long, global = true, env = "UNIMORPH_DATA")]
+    data_dir: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Commands,
+}
+
+/// Export format options.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ExportFormat {
+    Tsv,
+    Jsonl,
+    #[cfg(feature = "parquet")]
+    Parquet,
 }
 
 #[derive(Subcommand)]
@@ -95,6 +110,66 @@ enum Commands {
         #[arg(short, long)]
         lang: String,
     },
+
+    /// Search entries with flexible filtering
+    Search {
+        /// Language code
+        #[arg(short, long)]
+        lang: String,
+
+        /// Filter by lemma (supports SQL LIKE wildcards: % and _)
+        #[arg(long)]
+        lemma: Option<String>,
+
+        /// Filter by surface form
+        #[arg(long)]
+        form: Option<String>,
+
+        /// Filter by feature pattern (e.g., "V;IND;*;1;*")
+        #[arg(short, long)]
+        features: Option<String>,
+
+        /// Filter by part of speech (e.g., V, N, ADJ)
+        #[arg(long)]
+        pos: Option<String>,
+
+        /// Limit number of results
+        #[arg(long, default_value = "100")]
+        limit: usize,
+
+        /// Skip first N results
+        #[arg(long)]
+        offset: Option<usize>,
+
+        /// Just show count of matching entries
+        #[arg(long)]
+        count: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Export a language dataset to file
+    Export {
+        /// Language code
+        #[arg(short, long)]
+        lang: String,
+
+        /// Output file path (use - for stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (auto-detected from extension if not specified)
+        #[arg(short, long)]
+        format: Option<ExportFormat>,
+    },
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        shell: Shell,
+    },
 }
 
 fn init_tracing(verbose: u8) {
@@ -123,22 +198,81 @@ async fn main() -> Result<()> {
     debug!(
         verbose = cli.verbose,
         quiet = cli.quiet,
+        data_dir = ?cli.data_dir,
         "starting unimorph CLI"
     );
 
     match cli.command {
-        Commands::Download { lang, force } => cmd_download(&lang, force, cli.quiet).await,
-        Commands::List { cached } => cmd_list(cached),
+        Commands::Download { lang, force } => {
+            cmd_download(&lang, force, cli.quiet, cli.data_dir.as_deref()).await
+        }
+        Commands::List { cached } => cmd_list(cached, cli.data_dir.as_deref()),
         Commands::Inflect {
             lang,
             lemma,
             features,
             json,
-        } => cmd_inflect(&lang, &lemma, features.as_deref(), json),
-        Commands::Analyze { lang, form, json } => cmd_analyze(&lang, &form, json),
-        Commands::Stats { lang, json } => cmd_stats(&lang, json),
-        Commands::Delete { lang } => cmd_delete(&lang),
+        } => cmd_inflect(
+            &lang,
+            &lemma,
+            features.as_deref(),
+            json,
+            cli.data_dir.as_deref(),
+        ),
+        Commands::Analyze { lang, form, json } => {
+            cmd_analyze(&lang, &form, json, cli.data_dir.as_deref())
+        }
+        Commands::Stats { lang, json } => cmd_stats(&lang, json, cli.data_dir.as_deref()),
+        Commands::Delete { lang } => cmd_delete(&lang, cli.data_dir.as_deref()),
+        Commands::Search {
+            lang,
+            lemma,
+            form,
+            features,
+            pos,
+            limit,
+            offset,
+            count,
+            json,
+        } => cmd_search(
+            &lang,
+            lemma.as_deref(),
+            form.as_deref(),
+            features.as_deref(),
+            pos.as_deref(),
+            limit,
+            offset,
+            count,
+            json,
+            cli.data_dir.as_deref(),
+        ),
+        Commands::Export {
+            lang,
+            output,
+            format,
+        } => cmd_export(&lang, output, format, cli.data_dir.as_deref()),
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "unimorph", &mut io::stdout());
+            Ok(())
+        }
     }
+}
+
+/// Create a repository, optionally with a custom data directory.
+fn create_repo(data_dir: Option<&std::path::Path>) -> Result<Repository> {
+    match data_dir {
+        Some(path) => {
+            debug!(path = %path.display(), "using custom data directory");
+            Repository::with_cache_dir(path).context("Failed to initialize repository")
+        }
+        None => Repository::new().context("Failed to initialize repository"),
+    }
+}
+
+/// Create a mutable repository, optionally with a custom data directory.
+fn create_repo_mut(data_dir: Option<&std::path::Path>) -> Result<Repository> {
+    create_repo(data_dir)
 }
 
 /// Validate a language code and provide helpful error messages.
@@ -183,10 +317,15 @@ fn require_language(repo: &Repository, lang: &str) -> Result<()> {
 }
 
 #[instrument(skip_all, fields(lang, force))]
-async fn cmd_download(lang: &str, force: bool, quiet: bool) -> Result<()> {
+async fn cmd_download(
+    lang: &str,
+    force: bool,
+    quiet: bool,
+    data_dir: Option<&std::path::Path>,
+) -> Result<()> {
     validate_lang_code(lang)?;
 
-    let mut repo = Repository::new().context("Failed to initialize repository")?;
+    let mut repo = create_repo_mut(data_dir)?;
 
     let is_terminal = io::stdout().is_terminal();
     let pb = if !quiet && is_terminal {
@@ -243,8 +382,8 @@ async fn cmd_download(lang: &str, force: bool, quiet: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_list(cached: bool) -> Result<()> {
-    let repo = Repository::new().context("Failed to initialize repository")?;
+fn cmd_list(cached: bool, data_dir: Option<&std::path::Path>) -> Result<()> {
+    let repo = create_repo(data_dir)?;
 
     if cached {
         let langs = repo.cached_languages()?;
@@ -288,10 +427,16 @@ fn cmd_list(cached: bool) -> Result<()> {
 }
 
 #[instrument(skip_all, fields(lang, lemma))]
-fn cmd_inflect(lang: &str, lemma: &str, features: Option<&str>, json: bool) -> Result<()> {
+fn cmd_inflect(
+    lang: &str,
+    lemma: &str,
+    features: Option<&str>,
+    json: bool,
+    data_dir: Option<&std::path::Path>,
+) -> Result<()> {
     validate_lang_code(lang)?;
 
-    let repo = Repository::new().context("Failed to initialize repository")?;
+    let repo = create_repo(data_dir)?;
     require_language(&repo, lang)?;
 
     let entries = repo.store().inflect(lang, lemma)?;
@@ -343,10 +488,15 @@ fn cmd_inflect(lang: &str, lemma: &str, features: Option<&str>, json: bool) -> R
 }
 
 #[instrument(skip_all, fields(lang, form))]
-fn cmd_analyze(lang: &str, form: &str, json: bool) -> Result<()> {
+fn cmd_analyze(
+    lang: &str,
+    form: &str,
+    json: bool,
+    data_dir: Option<&std::path::Path>,
+) -> Result<()> {
     validate_lang_code(lang)?;
 
-    let repo = Repository::new().context("Failed to initialize repository")?;
+    let repo = create_repo(data_dir)?;
     require_language(&repo, lang)?;
 
     let entries = repo.store().analyze(lang, form)?;
@@ -379,10 +529,10 @@ fn cmd_analyze(lang: &str, form: &str, json: bool) -> Result<()> {
 }
 
 #[instrument(skip_all, fields(lang))]
-fn cmd_stats(lang: &str, json: bool) -> Result<()> {
+fn cmd_stats(lang: &str, json: bool, data_dir: Option<&std::path::Path>) -> Result<()> {
     validate_lang_code(lang)?;
 
-    let repo = Repository::new().context("Failed to initialize repository")?;
+    let repo = create_repo(data_dir)?;
     require_language(&repo, lang)?;
 
     let stats = repo
@@ -408,10 +558,10 @@ fn cmd_stats(lang: &str, json: bool) -> Result<()> {
 }
 
 #[instrument(skip_all, fields(lang))]
-fn cmd_delete(lang: &str) -> Result<()> {
+fn cmd_delete(lang: &str, data_dir: Option<&std::path::Path>) -> Result<()> {
     validate_lang_code(lang)?;
 
-    let mut repo = Repository::new().context("Failed to initialize repository")?;
+    let mut repo = create_repo_mut(data_dir)?;
 
     if !repo.store().has_language(lang)? {
         println!("Language '{}' is not cached.", lang);
@@ -421,6 +571,123 @@ fn cmd_delete(lang: &str) -> Result<()> {
     repo.delete(lang)?;
     info!(lang, "deleted language");
     println!("Deleted {}.", lang);
+
+    Ok(())
+}
+
+#[instrument(skip_all, fields(lang))]
+#[allow(clippy::too_many_arguments)]
+fn cmd_search(
+    lang: &str,
+    lemma: Option<&str>,
+    form: Option<&str>,
+    features: Option<&str>,
+    pos: Option<&str>,
+    limit: usize,
+    offset: Option<usize>,
+    count: bool,
+    json: bool,
+    data_dir: Option<&std::path::Path>,
+) -> Result<()> {
+    validate_lang_code(lang)?;
+
+    let repo = create_repo(data_dir)?;
+    require_language(&repo, lang)?;
+
+    let mut query = repo.store().query(lang);
+
+    if let Some(l) = lemma {
+        query = query.lemma(l);
+    }
+    if let Some(f) = form {
+        query = query.form(f);
+    }
+    if let Some(feat) = features {
+        query = query.features_match(feat);
+    }
+    if let Some(p) = pos {
+        query = query.pos(p);
+    }
+    if let Some(off) = offset {
+        query = query.offset(off);
+    }
+    query = query.limit(limit);
+
+    if count {
+        let n = query.count()?;
+        if json {
+            println!("{}", serde_json::json!({ "count": n }));
+        } else {
+            println!("{} entries match.", n);
+        }
+        return Ok(());
+    }
+
+    let entries = query.execute()?;
+
+    debug!(count = entries.len(), "search results");
+
+    if entries.is_empty() {
+        println!("No entries match the search criteria.");
+        return Ok(());
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else {
+        println!("{:<20} {:<20} FEATURES", "LEMMA", "FORM");
+        println!("{}", "-".repeat(60));
+        for entry in &entries {
+            println!("{:<20} {:<20} {}", entry.lemma, entry.form, entry.features);
+        }
+        println!();
+        println!("{} result(s).", entries.len());
+    }
+
+    Ok(())
+}
+
+#[instrument(skip_all, fields(lang))]
+fn cmd_export(
+    lang: &str,
+    output: Option<PathBuf>,
+    format: Option<ExportFormat>,
+    data_dir: Option<&std::path::Path>,
+) -> Result<()> {
+    validate_lang_code(lang)?;
+
+    let repo = create_repo(data_dir)?;
+    require_language(&repo, lang)?;
+
+    // Determine format from flag or file extension
+    let format = match (format, &output) {
+        (Some(f), _) => f,
+        (None, Some(path)) => match path.extension().and_then(|e| e.to_str()) {
+            Some("tsv") => ExportFormat::Tsv,
+            Some("jsonl") => ExportFormat::Jsonl,
+            #[cfg(feature = "parquet")]
+            Some("parquet") => ExportFormat::Parquet,
+            _ => ExportFormat::Tsv, // default
+        },
+        (None, None) => ExportFormat::Tsv,
+    };
+
+    let output_path = output.unwrap_or_else(|| PathBuf::from(format!("{}.tsv", lang)));
+
+    let count = match format {
+        ExportFormat::Tsv => repo.store().export_tsv(lang, &output_path)?,
+        ExportFormat::Jsonl => repo.store().export_jsonl(lang, &output_path)?,
+        #[cfg(feature = "parquet")]
+        ExportFormat::Parquet => repo.store().export_parquet(lang, &output_path)?,
+    };
+
+    info!(
+        lang,
+        path = %output_path.display(),
+        count,
+        "export complete"
+    );
+    println!("Exported {} entries to {}", count, output_path.display());
 
     Ok(())
 }
