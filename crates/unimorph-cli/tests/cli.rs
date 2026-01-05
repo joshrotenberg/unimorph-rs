@@ -53,7 +53,7 @@ mod help {
             .args(["download", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("--lang"))
+            .stdout(predicate::str::contains("<LANG>"))
             .stdout(predicate::str::contains("--force"));
     }
 
@@ -63,7 +63,8 @@ mod help {
             .args(["inflect", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("--lang"))
+            .stdout(predicate::str::contains("<LANG>"))
+            .stdout(predicate::str::contains("<LEMMA>"))
             .stdout(predicate::str::contains("--features"))
             .stdout(predicate::str::contains("--json"));
     }
@@ -74,7 +75,8 @@ mod help {
             .args(["analyze", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("--lang"))
+            .stdout(predicate::str::contains("<LANG>"))
+            .stdout(predicate::str::contains("<FORM>"))
             .stdout(predicate::str::contains("--json"));
     }
 
@@ -84,7 +86,7 @@ mod help {
             .args(["stats", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("--lang"))
+            .stdout(predicate::str::contains("<LANG>"))
             .stdout(predicate::str::contains("--json"));
     }
 
@@ -103,7 +105,7 @@ mod help {
             .args(["delete", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("--lang"));
+            .stdout(predicate::str::contains("<LANG>"));
     }
 }
 
@@ -133,35 +135,35 @@ mod errors {
             .arg("download")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("--lang"));
+            .stderr(predicate::str::contains("<LANG>"));
     }
 
     #[test]
     fn inflect_requires_lang() {
         unimorph()
-            .args(["inflect", "parlare"])
+            .arg("inflect")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("--lang"));
+            .stderr(predicate::str::contains("<LANG>"));
     }
 
     #[test]
     fn inflect_requires_lemma() {
-        unimorph().args(["inflect", "-l", "ita"]).assert().failure();
+        unimorph().args(["inflect", "ita"]).assert().failure();
     }
 
     #[test]
     fn analyze_requires_lang() {
         unimorph()
-            .args(["analyze", "parlo"])
+            .arg("analyze")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("--lang"));
+            .stderr(predicate::str::contains("<LANG>"));
     }
 
     #[test]
     fn analyze_requires_form() {
-        unimorph().args(["analyze", "-l", "ita"]).assert().failure();
+        unimorph().args(["analyze", "ita"]).assert().failure();
     }
 
     #[test]
@@ -170,7 +172,7 @@ mod errors {
             .arg("stats")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("--lang"));
+            .stderr(predicate::str::contains("<LANG>"));
     }
 
     #[test]
@@ -179,7 +181,7 @@ mod errors {
             .arg("delete")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("--lang"));
+            .stderr(predicate::str::contains("<LANG>"));
     }
 }
 
@@ -216,7 +218,7 @@ mod network_tests {
         // Download a small dataset (Czech is relatively small)
         unimorph()
             .env("HOME", temp_dir.path())
-            .args(["download", "-l", "ces"])
+            .args(["download", "ces"])
             .assert()
             .success()
             .stdout(predicate::str::contains("Downloaded ces"));
@@ -224,7 +226,7 @@ mod network_tests {
         // Query should work now
         unimorph()
             .env("HOME", temp_dir.path())
-            .args(["stats", "-l", "ces"])
+            .args(["stats", "ces"])
             .assert()
             .success()
             .stdout(predicate::str::contains("Total entries"));

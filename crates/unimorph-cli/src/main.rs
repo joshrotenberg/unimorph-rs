@@ -42,7 +42,6 @@ enum Commands {
     /// Download a language dataset
     Download {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        #[arg(short, long)]
         lang: String,
 
         /// Force re-download even if cached
@@ -71,8 +70,7 @@ enum Commands {
 
     /// Look up all forms of a lemma (dictionary form)
     Inflect {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
 
         /// Lemma to look up
@@ -89,8 +87,7 @@ enum Commands {
 
     /// Analyze a surface form (reverse lookup)
     Analyze {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
 
         /// Form to analyze
@@ -103,8 +100,7 @@ enum Commands {
 
     /// Show dataset statistics
     Stats {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
 
         /// Output as JSON
@@ -114,15 +110,13 @@ enum Commands {
 
     /// Delete a cached language dataset
     Delete {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
     },
 
     /// Search entries with flexible filtering
     Search {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
 
         /// Filter by lemma (supports SQL LIKE wildcards: % and _)
@@ -160,8 +154,7 @@ enum Commands {
 
     /// Export a language dataset to file
     Export {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
 
         /// Output file path (use - for stdout)
@@ -181,8 +174,7 @@ enum Commands {
 
     /// Show detailed info about a cached language
     Info {
-        /// Language code
-        #[arg(short, long)]
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
 
         /// Output as JSON
@@ -192,8 +184,7 @@ enum Commands {
 
     /// Update cached language datasets
     Update {
-        /// Language code (omit for --all)
-        #[arg(short, long)]
+        /// Language code (omit with --all to update all)
         lang: Option<String>,
 
         /// Update all cached languages
