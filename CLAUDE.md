@@ -4,15 +4,24 @@ A complete Rust toolkit for working with UniMorph morphological data.
 
 ## Project Status
 
-**Current phase**: Core library development (post-benchmarking)
+**Current phase**: v1 complete, focusing on core + CLI enhancements
 
-### Completed
+### Completed (v1)
 - Storage backend benchmarks (SQLite, DuckDB, Parquet)
 - Decision: SQLite for runtime, Parquet for export only
-- Core types validated: `Entry`, `FeatureBundle`, `LangCode`
+- `unimorph-core`: Types, SQLite store, repository
+- `unimorph-cli`: download, list, inflect, analyze, stats, delete
+- 74 tests passing
 
-### In Progress
-- `unimorph-core` crate development
+### Next (v1.x)
+- Query builder API (fluent interface)
+- Parquet export command
+- Batch operations for pipelines
+- Feature search improvements (if needed)
+
+### Future (v2)
+- Python bindings (PyO3) - returns Polars DataFrames
+- WASM build for browser
 
 ## Architecture Decisions
 
@@ -105,17 +114,13 @@ unimorph-rs/
 │   │   ├── types.rs         # Entry, FeatureBundle, LangCode
 │   │   ├── store.rs         # SQLite backend
 │   │   ├── repository.rs    # Download, cache management
-│   │   └── query.rs         # Query builders, result iterators
+│   │   └── query.rs         # Query builders (planned)
 │   │
 │   ├── unimorph-cli/        # CLI binary (v1)
 │   │
 │   ├── unimorph-bench/      # Benchmarks (done)
 │   │
-│   ├── unimorph-python/     # PyO3 bindings (v2)
-│   │                        # Returns Polars DataFrames natively
-│   │
-│   └── unimorph-server/     # REST API (v2)
-│                            # Axum, OpenAPI spec
+│   └── unimorph-python/     # PyO3 bindings (v2, future)
 ```
 
 ## Interface Priorities
@@ -125,10 +130,7 @@ unimorph-rs/
 | CLI | All | v1 |
 | Rust library | NLP engineers | v1 |
 | Python bindings (PyO3) | Researchers, ML | v2 |
-| REST API | App developers | v2 |
-| Polars integration | Data scientists | v2 |
-| WASM | Browser tools | v3 |
-| GraphQL | Frontend devs | v3 |
+| WASM | Browser tools | v2 |
 
 ## API Design Principles
 
