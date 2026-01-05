@@ -196,6 +196,18 @@ SQLite wins decisively for point lookups. Parquet wins for storage/distribution.
 
 Full results in `crates/unimorph-bench/results/RESULTS.md`.
 
+## Future Considerations
+
+### SQL Query Tools
+For compile-time checked SQL or query-from-file approaches (if queries become more complex):
+
+- **sqlx** - Compile-time checked queries against a real DB. Async-first, supports SQLite.
+- **diesel** - ORM with compile-time safety via macros. Schema-first approach.
+- **sea-query** - Type-safe SQL query builder (not ORM).
+- **include_sql** - Load SQL from files, generate Rust functions (HugSQL-style).
+
+Currently rusqlite is sufficient for our simple queries.
+
 ## Development Commands
 
 ```bash

@@ -41,7 +41,7 @@ use crate::{DatasetStats, Entry, FeatureBundle, LangCode, Result};
 /// to distinguish them. This simplifies management and enables cross-language
 /// queries.
 pub struct Store {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl Store {
