@@ -42,6 +42,7 @@
 
 pub mod error;
 pub mod export;
+pub mod query;
 pub mod repository;
 pub mod store;
 pub mod types;
@@ -49,6 +50,7 @@ pub mod types;
 pub use error::{Error, Result};
 #[cfg(feature = "parquet")]
 pub use export::ParquetExportOptions;
+pub use query::QueryBuilder;
 pub use repository::Repository;
 pub use store::Store;
 pub use types::{DatasetStats, Entry, FeatureBundle, LangCode};

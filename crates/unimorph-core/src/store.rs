@@ -33,6 +33,7 @@ use std::path::Path;
 use rusqlite::{Connection, params};
 use tracing::{debug, instrument};
 
+use crate::query::QueryBuilder;
 use crate::{DatasetStats, Entry, FeatureBundle, LangCode, Result};
 
 /// SQLite-based store for UniMorph data.
@@ -263,6 +264,23 @@ impl Store {
         let mut stmt = self.conn.prepare("SELECT 1 FROM meta WHERE lang = ?")?;
         let exists = stmt.exists(params![lang])?;
         Ok(exists)
+    }
+
+    /// Create a query builder for the given language.
+    ///
+    /// The query builder provides a fluent API for constructing complex queries.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let forms = store.query("ita")
+    ///     .lemma("parlare")
+    ///     .features_contain(&["IND", "PRS"])
+    ///     .limit(10)
+    ///     .execute()?;
+    /// ```
+    pub fn query(&self, lang: &str) -> QueryBuilder<'_> {
+        QueryBuilder::new(&self.conn, lang)
     }
 
     /// Delete a language from the store.
