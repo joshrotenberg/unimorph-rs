@@ -42,6 +42,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Better errors
 color-eyre = "0.6"
 
+# GitHub API
+octocrab = "0.44"
+
 # Export formats
 parquet = { version = "54", features = ["snap"] }
 arrow = { version = "54", default-features = false }

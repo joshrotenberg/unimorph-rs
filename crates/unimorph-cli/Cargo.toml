@@ -23,9 +23,13 @@ clap_complete = "4"
 tokio.workspace = true
 indicatif.workspace = true
 serde_json.workspace = true
+serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 color-eyre.workspace = true
+octocrab.workspace = true
+dirs.workspace = true
+chrono = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2"
