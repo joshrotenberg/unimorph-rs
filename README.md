@@ -92,6 +92,44 @@ impl Repository {
 }
 ```
 
+## Shell Completions
+
+Enable tab completion for your shell:
+
+### Bash
+
+```bash
+# Add to ~/.bashrc
+eval "$(unimorph completions bash)"
+
+# Or generate to a file (recommended for faster shell startup)
+unimorph completions bash > ~/.local/share/bash-completion/completions/unimorph
+```
+
+### Zsh
+
+```bash
+# Add to ~/.zshrc (before compinit)
+eval "$(unimorph completions zsh)"
+
+# Or generate to a file
+unimorph completions zsh > ~/.zfunc/_unimorph
+# Then add to ~/.zshrc: fpath+=~/.zfunc
+```
+
+### Fish
+
+```bash
+unimorph completions fish > ~/.config/fish/completions/unimorph.fish
+```
+
+### PowerShell
+
+```powershell
+# Add to your PowerShell profile
+unimorph completions powershell | Out-String | Invoke-Expression
+```
+
 ## CLI Design
 
 ```bash
