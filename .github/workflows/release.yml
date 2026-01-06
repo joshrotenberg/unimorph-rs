@@ -189,3 +189,23 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    needs: [build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#unimorph-cli-v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: unimorph
+          homebrew-tap: joshrotenberg/homebrew-brew
+          download-url: https://github.com/joshrotenberg/unimorph-rs/releases/download/${{ github.ref_name }}/unimorph-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
