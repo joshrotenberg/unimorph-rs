@@ -48,6 +48,10 @@ enum Commands {
         /// Force re-download even if cached
         #[arg(short, long)]
         force: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// List languages
@@ -118,6 +122,10 @@ enum Commands {
     Delete {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Search entries with flexible filtering
@@ -219,6 +227,10 @@ enum Commands {
         /// Clear all downloaded datasets (will need to re-download)
         #[arg(long)]
         clear_data: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Explore morphological features in a language
@@ -284,8 +296,8 @@ async fn main() -> Result<()> {
     );
 
     match cli.command {
-        Commands::Download { lang, force } => {
-            cmd_download(&lang, force, cli.quiet, cli.data_dir.as_deref()).await
+        Commands::Download { lang, force, json } => {
+            cmd_download(&lang, force, json, cli.quiet, cli.data_dir.as_deref()).await
         }
         Commands::List {
             cached,
@@ -309,7 +321,7 @@ async fn main() -> Result<()> {
             cmd_analyze(&lang, &form, json, cli.data_dir.as_deref())
         }
         Commands::Stats { lang, json } => cmd_stats(&lang, json, cli.data_dir.as_deref()),
-        Commands::Delete { lang } => cmd_delete(&lang, cli.data_dir.as_deref()),
+        Commands::Delete { lang, json } => cmd_delete(&lang, json, cli.data_dir.as_deref()),
         Commands::Search {
             lang,
             lemma,
@@ -352,7 +364,8 @@ async fn main() -> Result<()> {
         Commands::Repair {
             clear_cache,
             clear_data,
-        } => cmd_repair(clear_cache, clear_data, cli.data_dir.as_deref()),
+            json,
+        } => cmd_repair(clear_cache, clear_data, json, cli.data_dir.as_deref()),
         Commands::Features {
             lang,
             list,

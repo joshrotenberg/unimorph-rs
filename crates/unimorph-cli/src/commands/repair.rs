@@ -13,7 +13,12 @@ fn available_languages_cache_path() -> Option<std::path::PathBuf> {
 }
 
 #[instrument(skip_all)]
-pub fn cmd_repair(clear_cache: bool, clear_data: bool, data_dir: Option<&Path>) -> Result<()> {
+pub fn cmd_repair(
+    clear_cache: bool,
+    clear_data: bool,
+    json: bool,
+    data_dir: Option<&Path>,
+) -> Result<()> {
     let mut actions_taken = Vec::new();
 
     // Clear cache files
@@ -85,7 +90,15 @@ pub fn cmd_repair(clear_cache: bool, clear_data: bool, data_dir: Option<&Path>) 
     }
 
     // Print summary
-    if actions_taken.is_empty() {
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "status": if actions_taken.is_empty() { "no_action" } else { "complete" },
+                "actions": actions_taken
+            })
+        );
+    } else if actions_taken.is_empty() {
         println!("Nothing to do. Use --clear-cache or --clear-data to clear data.");
         println!();
         println!("Options:");
