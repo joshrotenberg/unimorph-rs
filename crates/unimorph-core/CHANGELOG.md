@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-01-06
+
+### Bug Fixes
+
+- Update examples from Italian to Spanish ([#67](https://github.com/joshrotenberg/unimorph-rs/pull/67))
+
+### Documentation
+
+- Add Python bindings section to README ([#66](https://github.com/joshrotenberg/unimorph-rs/pull/66))
+
+
+
 ## [0.1.2] - 2026-01-06
 
 ### Bug Fixes
