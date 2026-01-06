@@ -258,22 +258,9 @@ mod config_command {
             .stdout(predicate::str::contains("\"exists\""));
     }
 
-    /// Get the config directory path based on platform.
-    /// On macOS: ~/Library/Application Support/unimorph
-    /// On Linux: ~/.config/unimorph (or XDG_CONFIG_HOME)
+    /// Get the config directory path (always ~/.config/unimorph on all platforms).
     fn config_dir_for_temp(temp_dir: &TempDir) -> std::path::PathBuf {
-        #[cfg(target_os = "macos")]
-        {
-            temp_dir
-                .path()
-                .join("Library")
-                .join("Application Support")
-                .join("unimorph")
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            temp_dir.path().join(".config").join("unimorph")
-        }
+        temp_dir.path().join(".config").join("unimorph")
     }
 
     #[test]

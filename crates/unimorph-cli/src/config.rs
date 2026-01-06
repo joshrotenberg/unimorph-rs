@@ -1,7 +1,7 @@
 //! Configuration file support for unimorph CLI.
 //!
-//! Configuration is loaded from `~/.config/unimorph/config.toml` on Unix
-//! or `%APPDATA%\unimorph\config.toml` on Windows.
+//! Configuration is loaded from `~/.config/unimorph/config.toml` on all platforms.
+//! This is consistent with the data directory at `~/.cache/unimorph/`.
 //!
 //! Priority order (highest to lowest):
 //! 1. Command-line flags
@@ -91,8 +91,11 @@ impl Config {
     }
 
     /// Get the default config file path.
+    ///
+    /// Always uses `~/.config/unimorph/config.toml` for consistency with
+    /// the data directory at `~/.cache/unimorph/`.
     pub fn config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|p| p.join("unimorph").join("config.toml"))
+        dirs::home_dir().map(|p| p.join(".config").join("unimorph").join("config.toml"))
     }
 
     /// Resolve a language code, checking aliases first.
