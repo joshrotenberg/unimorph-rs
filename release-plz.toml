@@ -3,8 +3,12 @@
 changelog_config = "cliff.toml"
 # Create GitHub releases
 git_release_enable = true
-# Include commit body in release notes
-git_release_body = true
+# Git release body template
+git_release_body = """
+{{ changelog }}
+
+**Full Changelog**: https://github.com/joshrotenberg/unimorph-rs/compare/{{ previous_tag }}...{{ tag }}
+"""
 
 # Don't publish the benchmark crate
 [[package]]
