@@ -44,11 +44,13 @@ jobs:
         run: |
           VERSION=$(echo '${{ needs.release-plz.outputs.releases }}' | jq -r '.[] | select(.package_name == "unimorph-cli") | .version')
           if [ -n "$VERSION" ] && [ "$VERSION" != "null" ]; then
-            echo "version=v${VERSION}" >> $GITHUB_OUTPUT
-            echo "Released unimorph-cli version: v${VERSION}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "tag=unimorph-cli-v${VERSION}" >> $GITHUB_OUTPUT
+            echo "Released unimorph-cli version: ${VERSION} (tag: unimorph-cli-v${VERSION})"
           else
             echo "No unimorph-cli release found"
             echo "version=" >> $GITHUB_OUTPUT
+            echo "tag=" >> $GITHUB_OUTPUT
           fi
 
       - name: Update Homebrew formula
@@ -58,7 +60,8 @@ jobs:
           formula-name: unimorph
           formula-path: Formula/unimorph.rb
           base-branch: main
-          tag-name: ${{ steps.parse.outputs.version }}
+          tag-name: ${{ steps.parse.outputs.tag }}
+          download-url: https://github.com/joshrotenberg/unimorph-rs/archive/refs/tags/${{ steps.parse.outputs.tag }}.tar.gz
           homebrew-tap: joshrotenberg/homebrew-brew
         env:
           COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
