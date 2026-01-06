@@ -2,10 +2,12 @@
 
 use std::io::IsTerminal;
 use std::path::Path;
+use std::sync::Arc;
 
 use color_eyre::eyre::{Context, ContextCompat, Result};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 use tracing::{info, instrument};
+use unimorph_core::DownloadProgress;
 
 use crate::util::{create_repo, validate_lang_code};
 
@@ -21,55 +23,83 @@ pub async fn cmd_download(
     let mut repo = create_repo(data_dir)?;
 
     let is_terminal = std::io::stdout().is_terminal();
+
+    // Check if already cached (for non-force downloads)
+    if !force && repo.store().has_language(lang)? {
+        if !quiet {
+            println!("{} is already cached. Use --force to re-download.", lang);
+        }
+        return Ok(());
+    }
+
     let pb = if !quiet && is_terminal {
-        let pb = ProgressBar::new_spinner();
+        let pb = ProgressBar::new(0);
         pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
-                .expect("valid template"),
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} {msg} [{bar:30.cyan/blue}] {bytes}/{total_bytes}")
+                .expect("valid template")
+                .progress_chars("=> "),
         );
         pb.set_message(format!("Downloading {}...", lang));
         pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        Some(pb)
+        Some(Arc::new(pb))
     } else {
         None
     };
 
-    let downloaded = if force {
-        repo.refresh(lang)
+    let pb_clone = pb.clone();
+    let progress_callback = move |progress: DownloadProgress| {
+        if let Some(ref pb) = pb_clone {
+            // Update total if known
+            if let Some(total) = progress.total_bytes {
+                pb.set_length(total);
+            }
+            pb.set_position(progress.downloaded_bytes);
+
+            // Update message for multi-file downloads
+            if progress.total_files > 1 {
+                pb.set_message(format!(
+                    "Downloading {} ({}/{})",
+                    progress.current_file, progress.current_file_index, progress.total_files
+                ));
+            }
+        }
+    };
+
+    if force {
+        repo.refresh_with_progress(lang, progress_callback)
             .await
             .context(format!("Failed to download '{}'", lang))?;
-        true
     } else {
-        repo.ensure(lang)
+        repo.ensure_with_progress(lang, progress_callback)
             .await
-            .context(format!("Failed to download '{}'", lang))?
+            .context(format!("Failed to download '{}'", lang))?;
     };
 
     if let Some(pb) = pb {
+        let total = pb.length().unwrap_or(pb.position());
         pb.finish_and_clear();
+        if !quiet {
+            println!("Downloaded {} bytes", HumanBytes(total));
+        }
     }
 
-    if downloaded {
-        let stats = repo
-            .store()
-            .stats(lang)?
-            .context("Failed to retrieve stats after download")?;
-        info!(
-            lang,
-            entries = stats.total_entries,
-            lemmas = stats.unique_lemmas,
-            forms = stats.unique_forms,
-            "download complete"
+    let stats = repo
+        .store()
+        .stats(lang)?
+        .context("Failed to retrieve stats after download")?;
+    info!(
+        lang,
+        entries = stats.total_entries,
+        lemmas = stats.unique_lemmas,
+        forms = stats.unique_forms,
+        "download complete"
+    );
+    if !quiet {
+        println!(
+            "{}: {} entries, {} lemmas, {} forms",
+            lang, stats.total_entries, stats.unique_lemmas, stats.unique_forms
         );
-        if !quiet {
-            println!(
-                "Downloaded {}: {} entries, {} lemmas, {} forms",
-                lang, stats.total_entries, stats.unique_lemmas, stats.unique_forms
-            );
-        }
-    } else if !quiet {
-        println!("{} is already cached. Use --force to re-download.", lang);
     }
 
     Ok(())
