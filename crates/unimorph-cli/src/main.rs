@@ -13,8 +13,8 @@ use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use commands::{
-    ExportFormat, cmd_analyze, cmd_delete, cmd_download, cmd_export, cmd_inflect, cmd_info,
-    cmd_list, cmd_repair, cmd_search, cmd_stats, cmd_update,
+    ExportFormat, cmd_analyze, cmd_delete, cmd_download, cmd_export, cmd_features, cmd_inflect,
+    cmd_info, cmd_list, cmd_repair, cmd_search, cmd_stats, cmd_update,
 };
 
 #[derive(Parser)]
@@ -210,6 +210,36 @@ enum Commands {
         #[arg(long)]
         clear_data: bool,
     },
+
+    /// Explore morphological features in a language
+    Features {
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
+        lang: String,
+
+        /// List all unique feature values
+        #[arg(long)]
+        list: bool,
+
+        /// Show feature value counts (histogram)
+        #[arg(long)]
+        stats: bool,
+
+        /// Search for entries containing a specific feature
+        #[arg(long)]
+        search: Option<String>,
+
+        /// Show values at a specific position (0-indexed)
+        #[arg(long)]
+        position: Option<usize>,
+
+        /// Limit number of results
+        #[arg(long, default_value = "50")]
+        limit: usize,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn init_tracing(verbose: u8) {
@@ -312,5 +342,23 @@ async fn main() -> Result<()> {
             clear_cache,
             clear_data,
         } => cmd_repair(clear_cache, clear_data, cli.data_dir.as_deref()),
+        Commands::Features {
+            lang,
+            list,
+            stats,
+            search,
+            position,
+            limit,
+            json,
+        } => cmd_features(
+            &lang,
+            list,
+            stats,
+            search.as_deref(),
+            position,
+            limit,
+            json,
+            cli.data_dir.as_deref(),
+        ),
     }
 }

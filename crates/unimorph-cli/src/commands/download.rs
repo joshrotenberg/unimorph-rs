@@ -2,12 +2,12 @@
 
 use std::io::IsTerminal;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use color_eyre::eyre::{Context, ContextCompat, Result};
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 use tracing::{info, instrument};
-use unimorph_core::DownloadProgress;
+use unimorph_core::{DownloadPhase, DownloadProgress};
 
 use crate::util::{create_repo, validate_lang_code};
 
@@ -32,6 +32,9 @@ pub async fn cmd_download(
         return Ok(());
     }
 
+    // Track total downloaded bytes across all files
+    let total_downloaded = Arc::new(Mutex::new(0u64));
+
     let pb = if !quiet && is_terminal {
         let pb = ProgressBar::new(0);
         pb.set_style(
@@ -48,20 +51,41 @@ pub async fn cmd_download(
     };
 
     let pb_clone = pb.clone();
+    let total_downloaded_clone = total_downloaded.clone();
     let progress_callback = move |progress: DownloadProgress| {
         if let Some(ref pb) = pb_clone {
-            // Update total if known
-            if let Some(total) = progress.total_bytes {
-                pb.set_length(total);
-            }
-            pb.set_position(progress.downloaded_bytes);
+            match progress.phase {
+                DownloadPhase::Downloading => {
+                    // Update total if known
+                    if let Some(total) = progress.total_bytes {
+                        pb.set_length(total);
+                    }
+                    pb.set_position(progress.downloaded_bytes);
 
-            // Update message for multi-file downloads
-            if progress.total_files > 1 {
-                pb.set_message(format!(
-                    "Downloading {} ({}/{})",
-                    progress.current_file, progress.current_file_index, progress.total_files
-                ));
+                    // Track total downloaded
+                    if let Ok(mut total) = total_downloaded_clone.lock() {
+                        *total = (*total).max(progress.downloaded_bytes);
+                    }
+
+                    // Update message for multi-file downloads
+                    if progress.total_files > 1 {
+                        pb.set_message(format!(
+                            "Downloading {} ({}/{})",
+                            progress.current_file,
+                            progress.current_file_index,
+                            progress.total_files
+                        ));
+                    }
+                }
+                DownloadPhase::Importing => {
+                    // Switch to spinner for import phase
+                    pb.set_style(
+                        ProgressStyle::default_spinner()
+                            .template("{spinner:.green} {msg}")
+                            .expect("valid template"),
+                    );
+                    pb.set_message("Importing...");
+                }
             }
         }
     };
@@ -76,12 +100,16 @@ pub async fn cmd_download(
             .context(format!("Failed to download '{}'", lang))?;
     };
 
-    if let Some(pb) = pb {
-        let total = pb.length().unwrap_or(pb.position());
+    if let Some(ref pb) = pb {
         pb.finish_and_clear();
-        if !quiet {
-            println!("Downloaded {} bytes", HumanBytes(total));
-        }
+    }
+
+    // Show download summary
+    if !quiet
+        && let Ok(total) = total_downloaded.lock()
+        && *total > 0
+    {
+        println!("Downloaded {}", HumanBytes(*total));
     }
 
     let stats = repo

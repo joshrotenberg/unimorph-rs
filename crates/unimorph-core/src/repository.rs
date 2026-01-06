@@ -34,9 +34,20 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::{Entry, Error, LangCode, Result, Store};
 
+/// Phase of the download/import operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DownloadPhase {
+    /// Downloading data from GitHub.
+    Downloading,
+    /// Parsing TSV and importing into SQLite.
+    Importing,
+}
+
 /// Progress information for download operations.
 #[derive(Debug, Clone)]
 pub struct DownloadProgress {
+    /// Current phase of the operation.
+    pub phase: DownloadPhase,
     /// Total bytes expected (if known from Content-Length header).
     pub total_bytes: Option<u64>,
     /// Bytes downloaded so far.
@@ -229,7 +240,18 @@ impl Repository {
         let commit_sha = fetch_commit_sha(lang).await.ok();
         debug!(lang = %lang, commit_sha = ?commit_sha, "fetched commit SHA");
 
-        let content = download_language_with_progress(lang, on_progress).await?;
+        let content = download_language_with_progress(lang, &on_progress).await?;
+
+        // Signal import phase
+        on_progress(DownloadProgress {
+            phase: DownloadPhase::Importing,
+            total_bytes: None,
+            downloaded_bytes: 0,
+            current_file: String::new(),
+            total_files: 0,
+            current_file_index: 0,
+        });
+
         let (entries, skipped) = Entry::parse_tsv_lenient(&content);
 
         if skipped > 0 {
@@ -339,7 +361,7 @@ async fn download_language(lang: &LangCode) -> Result<String> {
 
 /// Download a language dataset from GitHub with progress reporting.
 #[instrument(level = "debug", skip(on_progress))]
-async fn download_language_with_progress<F>(lang: &LangCode, on_progress: F) -> Result<String>
+async fn download_language_with_progress<F>(lang: &LangCode, on_progress: &F) -> Result<String>
 where
     F: Fn(DownloadProgress) + Send + Sync,
 {
@@ -381,6 +403,7 @@ where
 
         // Send initial progress
         on_progress(DownloadProgress {
+            phase: DownloadPhase::Downloading,
             total_bytes,
             downloaded_bytes,
             current_file: pattern.clone(),
@@ -396,6 +419,7 @@ where
             content.extend_from_slice(&chunk);
 
             on_progress(DownloadProgress {
+                phase: DownloadPhase::Downloading,
                 total_bytes,
                 downloaded_bytes,
                 current_file: pattern.clone(),
