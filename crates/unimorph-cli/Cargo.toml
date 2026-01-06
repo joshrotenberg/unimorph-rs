@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../../README.md"
 description = "Command-line interface for UniMorph morphological data"
 keywords = ["linguistics", "morphology", "nlp", "unimorph", "cli"]
 categories = ["command-line-utilities", "science", "text-processing"]
