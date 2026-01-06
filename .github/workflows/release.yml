@@ -1,35 +1,19 @@
-name: Release
+name: Build Release Binaries
 
 on:
   push:
     tags:
-      - 'v[0-9]+.*'
+      - "unimorph-cli-v[0-9]+.*"
 
 env:
   CARGO_TERM_COLOR: always
 
-jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
+permissions:
+  contents: write
 
+jobs:
   build-binaries:
     name: Build (${{ matrix.target }})
-    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -37,73 +21,47 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            archive: tar.gz
           - target: x86_64-apple-darwin
             os: macos-latest
-            archive: tar.gz
           - target: aarch64-apple-darwin
             os: macos-latest
-            archive: tar.gz
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive: zip
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p unimorph-cli
 
       - name: Package (Unix)
-        if: matrix.os != 'windows-latest'
+        if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
           tar czvf ../../../unimorph-${{ github.ref_name }}-${{ matrix.target }}.tar.gz unimorph
           cd ../../..
 
       - name: Package (Windows)
-        if: matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
           7z a ../../../unimorph-${{ github.ref_name }}-${{ matrix.target }}.zip unimorph.exe
           cd ../../..
 
-      - name: Upload Release Asset (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload to Release (Unix)
+        if: runner.os != 'Windows'
+        uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: unimorph-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
-          asset_name: unimorph-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
-          asset_content_type: application/gzip
+          files: unimorph-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
 
-      - name: Upload Release Asset (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload to Release (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: unimorph-${{ github.ref_name }}-${{ matrix.target }}.zip
-          asset_name: unimorph-${{ github.ref_name }}-${{ matrix.target }}.zip
-          asset_content_type: application/zip
-
-  publish-crates:
-    name: Publish to crates.io
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Publish unimorph-core
-        run: cargo publish -p unimorph-core --token ${{ secrets.CRATES_IO_TOKEN }}
-      - name: Wait for crates.io
-        run: sleep 30
-      - name: Publish unimorph-cli
-        run: cargo publish -p unimorph-cli --token ${{ secrets.CRATES_IO_TOKEN }}
+          files: unimorph-${{ github.ref_name }}-${{ matrix.target }}.zip
