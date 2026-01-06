@@ -26,9 +26,10 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Topic :: Text Processing :: Linguistic",
 ]
-dependencies = ["polars>=1.0"]
+dependencies = []
 
 [project.optional-dependencies]
+polars = ["polars>=1.0"]
 dev = [
     "pytest>=8.0",
     "maturin>=1.7",

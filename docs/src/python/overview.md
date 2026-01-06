@@ -8,6 +8,12 @@ The `unimorph-rs` Python package provides fast, Rust-powered access to UniMorph 
 pip install unimorph-rs
 ```
 
+For Polars DataFrame support:
+
+```bash
+pip install unimorph-rs[polars]
+```
+
 **Links:**
 - [PyPI Package](https://pypi.org/project/unimorph-rs/)
 - [Source Code](https://github.com/joshrotenberg/unimorph-rs/tree/main/crates/unimorph-python)
@@ -15,7 +21,7 @@ pip install unimorph-rs
 ## Requirements
 
 - Python 3.9+
-- [Polars](https://pola.rs/) (installed automatically)
+- [Polars](https://pola.rs/) (optional, for DataFrame methods)
 
 ## Quick Start
 
@@ -129,6 +135,8 @@ if store.has_language("fra"):
 ```
 
 ## Polars DataFrame Support
+
+> **Note:** Requires `pip install unimorph-rs[polars]`
 
 All query methods have `_df` variants that return Polars DataFrames for easy data analysis.
 

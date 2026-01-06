@@ -8,6 +8,12 @@ Python bindings for the UniMorph morphological data toolkit.
 pip install unimorph-rs
 ```
 
+For optional Polars DataFrame support:
+
+```bash
+pip install unimorph-rs[polars]
+```
+
 ## Usage
 
 ```python
