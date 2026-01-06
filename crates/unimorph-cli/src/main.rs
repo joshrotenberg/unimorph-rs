@@ -2,6 +2,7 @@
 
 mod colors;
 mod commands;
+mod config;
 mod util;
 
 use std::io;
@@ -14,9 +15,11 @@ use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use commands::{
-    ExportFormat, cmd_analyze, cmd_delete, cmd_download, cmd_export, cmd_features, cmd_inflect,
-    cmd_info, cmd_list, cmd_repair, cmd_search, cmd_stats, cmd_update,
+    ExportFormat, cmd_analyze, cmd_config_init, cmd_config_path, cmd_config_show, cmd_delete,
+    cmd_download, cmd_export, cmd_features, cmd_inflect, cmd_info, cmd_list, cmd_repair,
+    cmd_search, cmd_stats, cmd_update,
 };
+use config::Config;
 
 #[derive(Parser)]
 #[command(name = "unimorph")]
@@ -269,6 +272,41 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+
+    /// Manage configuration
+    #[command(visible_alias = "cfg")]
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Show current configuration
+    Show {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Initialize a new config file with example content
+    Init {
+        /// Overwrite existing config file
+        #[arg(long)]
+        force: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show the config file path
+    Path {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn init_tracing(verbose: u8) {
@@ -287,6 +325,22 @@ fn init_tracing(verbose: u8) {
         .init();
 }
 
+/// Resolve the effective data directory.
+///
+/// Priority order:
+/// 1. CLI --data-dir flag
+/// 2. UNIMORPH_DATA env var (handled by clap)
+/// 3. Config file data_dir
+/// 4. Default (~/.cache/unimorph)
+fn resolve_data_dir(cli_data_dir: Option<PathBuf>, config: &Config) -> Option<PathBuf> {
+    // CLI flag (including env var via clap) takes precedence
+    if cli_data_dir.is_some() {
+        return cli_data_dir;
+    }
+    // Fall back to config file
+    config.data_dir.clone()
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
@@ -294,40 +348,58 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
 
+    // Load configuration file
+    let config = Config::load();
+    debug!(config = ?config, "loaded configuration");
+
+    // Resolve data directory (CLI > env > config > default)
+    let data_dir = resolve_data_dir(cli.data_dir, &config);
+
     debug!(
         verbose = cli.verbose,
         quiet = cli.quiet,
-        data_dir = ?cli.data_dir,
+        data_dir = ?data_dir,
         "starting unimorph CLI"
     );
 
     match cli.command {
         Commands::Download { lang, force, json } => {
-            cmd_download(&lang, force, json, cli.quiet, cli.data_dir.as_deref()).await
+            let lang = config.resolve_lang(&lang);
+            cmd_download(&lang, force, json, cli.quiet, data_dir.as_deref()).await
         }
         Commands::List {
             cached,
             available,
             refresh,
             json,
-        } => cmd_list(cached, available, refresh, json, cli.data_dir.as_deref()).await,
+        } => cmd_list(cached, available, refresh, json, data_dir.as_deref()).await,
         Commands::Inflect {
             lang,
             lemma,
             features,
             json,
-        } => cmd_inflect(
-            &lang,
-            &lemma,
-            features.as_deref(),
-            json,
-            cli.data_dir.as_deref(),
-        ),
-        Commands::Analyze { lang, form, json } => {
-            cmd_analyze(&lang, &form, json, cli.data_dir.as_deref())
+        } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_inflect(
+                &lang,
+                &lemma,
+                features.as_deref(),
+                json,
+                data_dir.as_deref(),
+            )
         }
-        Commands::Stats { lang, json } => cmd_stats(&lang, json, cli.data_dir.as_deref()),
-        Commands::Delete { lang, json } => cmd_delete(&lang, json, cli.data_dir.as_deref()),
+        Commands::Analyze { lang, form, json } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_analyze(&lang, &form, json, data_dir.as_deref())
+        }
+        Commands::Stats { lang, json } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_stats(&lang, json, data_dir.as_deref())
+        }
+        Commands::Delete { lang, json } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_delete(&lang, json, data_dir.as_deref())
+        }
         Commands::Search {
             lang,
             lemma,
@@ -339,41 +411,53 @@ async fn main() -> Result<()> {
             offset,
             count,
             json,
-        } => cmd_search(
-            &lang,
-            lemma.as_deref(),
-            form.as_deref(),
-            features.as_deref(),
-            contains,
-            pos.as_deref(),
-            limit,
-            offset,
-            count,
-            json,
-            cli.data_dir.as_deref(),
-        ),
+        } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_search(
+                &lang,
+                lemma.as_deref(),
+                form.as_deref(),
+                features.as_deref(),
+                contains,
+                pos.as_deref(),
+                limit,
+                offset,
+                count,
+                json,
+                data_dir.as_deref(),
+            )
+        }
         Commands::Export {
             lang,
             output,
             format,
-        } => cmd_export(&lang, output, format, cli.data_dir.as_deref()),
+        } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_export(&lang, output, format, data_dir.as_deref())
+        }
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, "unimorph", &mut io::stdout());
             Ok(())
         }
-        Commands::Info { lang, json } => cmd_info(&lang, json, cli.data_dir.as_deref()).await,
+        Commands::Info { lang, json } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_info(&lang, json, data_dir.as_deref()).await
+        }
         Commands::Update {
             lang,
             all,
             check,
             json,
-        } => cmd_update(lang.as_deref(), all, check, json, cli.data_dir.as_deref()).await,
+        } => {
+            let lang = lang.map(|l| config.resolve_lang(&l));
+            cmd_update(lang.as_deref(), all, check, json, data_dir.as_deref()).await
+        }
         Commands::Repair {
             clear_cache,
             clear_data,
             json,
-        } => cmd_repair(clear_cache, clear_data, json, cli.data_dir.as_deref()),
+        } => cmd_repair(clear_cache, clear_data, json, data_dir.as_deref()),
         Commands::Features {
             lang,
             list,
@@ -382,15 +466,23 @@ async fn main() -> Result<()> {
             position,
             limit,
             json,
-        } => cmd_features(
-            &lang,
-            list,
-            stats,
-            search.as_deref(),
-            position,
-            limit,
-            json,
-            cli.data_dir.as_deref(),
-        ),
+        } => {
+            let lang = config.resolve_lang(&lang);
+            cmd_features(
+                &lang,
+                list,
+                stats,
+                search.as_deref(),
+                position,
+                limit,
+                json,
+                data_dir.as_deref(),
+            )
+        }
+        Commands::Config { action } => match action {
+            ConfigAction::Show { json } => cmd_config_show(json),
+            ConfigAction::Init { force, json } => cmd_config_init(force, json),
+            ConfigAction::Path { json } => cmd_config_path(json),
+        },
     }
 }

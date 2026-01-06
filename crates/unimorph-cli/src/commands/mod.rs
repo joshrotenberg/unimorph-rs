@@ -1,6 +1,7 @@
 //! CLI command implementations.
 
 mod analyze;
+mod config;
 mod delete;
 mod download;
 mod export;
@@ -14,6 +15,7 @@ mod stats;
 mod update;
 
 pub use analyze::cmd_analyze;
+pub use config::{cmd_config_init, cmd_config_path, cmd_config_show};
 pub use delete::cmd_delete;
 pub use download::cmd_download;
 pub use export::{ExportFormat, cmd_export};
