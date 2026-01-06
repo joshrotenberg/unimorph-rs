@@ -42,8 +42,6 @@ impl PyEntry {
 #[derive(Clone)]
 pub struct PyDatasetStats {
     #[pyo3(get)]
-    pub language: String,
-    #[pyo3(get)]
     pub total_entries: usize,
     #[pyo3(get)]
     pub unique_lemmas: usize,
@@ -56,7 +54,6 @@ pub struct PyDatasetStats {
 impl From<DatasetStats> for PyDatasetStats {
     fn from(stats: DatasetStats) -> Self {
         Self {
-            language: stats.language,
             total_entries: stats.total_entries,
             unique_lemmas: stats.unique_lemmas,
             unique_forms: stats.unique_forms,
@@ -69,12 +66,8 @@ impl From<DatasetStats> for PyDatasetStats {
 impl PyDatasetStats {
     fn __repr__(&self) -> String {
         format!(
-            "DatasetStats(language='{}', total_entries={}, unique_lemmas={}, unique_forms={}, unique_features={})",
-            self.language,
-            self.total_entries,
-            self.unique_lemmas,
-            self.unique_forms,
-            self.unique_features
+            "DatasetStats(total_entries={}, unique_lemmas={}, unique_forms={}, unique_features={})",
+            self.total_entries, self.unique_lemmas, self.unique_forms, self.unique_features
         )
     }
 }
@@ -146,7 +139,7 @@ impl PyStore {
             .store()
             .languages()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-        Ok(langs)
+        Ok(langs.into_iter().map(|l| l.to_string()).collect())
     }
 
     /// Check if a language is downloaded.
@@ -163,19 +156,14 @@ impl PyStore {
     }
 
     /// Search for entries containing specific features.
-    fn search_features(
-        &self,
-        lang: &str,
-        features: &str,
-        limit: Option<usize>,
-    ) -> PyResult<Vec<PyEntry>> {
+    fn search_features(&self, lang: &str, features: &str) -> PyResult<Vec<PyEntry>> {
         let repo = self
             .repo
             .lock()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         let entries = repo
             .store()
-            .search_features(lang, features, limit)
+            .search_features(lang, features)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         Ok(entries.into_iter().map(PyEntry::from).collect())
     }
@@ -188,9 +176,9 @@ fn download(lang: &str) -> PyResult<()> {
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
     rt.block_on(async {
-        let repo = Repository::new()
+        let mut repo = Repository::new()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        repo.download(lang)
+        repo.ensure(lang)
             .await
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
         Ok(())

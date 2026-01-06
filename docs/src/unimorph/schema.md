@@ -189,7 +189,7 @@ V;1;SG;PST     (1st person singular past)
 V;3;PL;FUT;MASC (3rd person plural future masculine)
 ```
 
-**Italian verbs**: `V;MOOD;TENSE;PERSON;NUMBER`
+**Spanish verbs**: `V;MOOD;TENSE;PERSON;NUMBER`
 ```
 V;IND;PRS;1;SG  (indicative present 1st singular)
 V;SBJV;PST;3;PL (subjunctive past 3rd plural)

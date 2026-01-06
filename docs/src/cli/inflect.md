@@ -105,7 +105,7 @@ unimorph inflect -l heb כתב --tsv | cut -f2 | sort -u
 unimorph inflect -l heb כתב --tsv | cut -f3 | grep -o 'PST\|PRS\|FUT' | sort | uniq -c
 
 # Find forms matching a pattern
-unimorph inflect -l ita parlare --tsv | grep "1;SG"
+unimorph inflect -l spa hablar --tsv | grep "1;SG"
 ```
 
 ## Notes

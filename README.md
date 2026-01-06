@@ -12,9 +12,9 @@ UniMorph provides morphological paradigm data for 169+ languages in a unified an
 
 ```
 lemma       form        features
-parlare     parlo       V;IND;PRS;1;SG
-parlare     parlato     V.PTCP;PST
-essere      sono        V;IND;PRS;1;SG
+hablar      hablo       V;IND;PRS;1;SG
+hablar      hablado     V;V.PTCP;PST;MASC;SG
+ser         soy         V;IND;PRS;1;SG
 ```
 
 ## Installation
@@ -38,8 +38,8 @@ cargo install unimorph-cli
 docker pull ghcr.io/joshrotenberg/unimorph-rs:latest
 
 # Run with persistent data cache
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download ita
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect ita parlare
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download spa
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect spa hablar
 ```
 
 ### From source
@@ -53,23 +53,23 @@ cargo install --path crates/unimorph-cli
 ## Quick Start
 
 ```bash
-# Download Italian dataset
-unimorph download ita
+# Download Spanish dataset
+unimorph download spa
 
 # Look up all forms of a verb
-unimorph inflect ita parlare
+unimorph inflect spa hablar
 
 # Analyze a surface form (reverse lookup)
-unimorph analyze ita parlo
+unimorph analyze spa hablo
 
 # Search with filters
-unimorph search ita --lemma "parl*" --contains V,IND
+unimorph search spa --lemma "habl*" --contains V,IND
 
 # Dataset statistics
-unimorph stats ita
+unimorph stats spa
 
 # Export to JSON Lines
-unimorph export ita -f jsonl -o italian.jsonl
+unimorph export spa -F jsonl -o spanish.jsonl
 ```
 
 ## Library Usage
@@ -81,19 +81,19 @@ use unimorph_core::{Store, Repository, LangCode};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Download dataset if needed
     let repo = Repository::new()?;
-    let lang: LangCode = "ita".parse()?;
+    let lang: LangCode = "spa".parse()?;
     repo.ensure_dataset(&lang).await?;
 
     // Query the data
     let store = repo.store()?;
     
     // Get all forms of a lemma
-    for entry in store.inflect(&lang, "parlare")? {
+    for entry in store.inflect(&lang, "hablar")? {
         println!("{} -> {} [{}]", entry.lemma, entry.form, entry.features);
     }
 
     // Reverse lookup: find lemmas for a surface form
-    for entry in store.analyze(&lang, "parlo")? {
+    for entry in store.analyze(&lang, "hablo")? {
         println!("{} <- {} [{}]", entry.form, entry.lemma, entry.features);
     }
 

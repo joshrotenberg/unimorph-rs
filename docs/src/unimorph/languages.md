@@ -118,7 +118,7 @@ Create shortcuts for frequently used languages:
 # ~/.config/unimorph/config.toml
 [languages]
 hebrew = "heb"
-italian = "ita"
+spanish = "spa"
 german = "deu"
 finnish = "fin"
 ```

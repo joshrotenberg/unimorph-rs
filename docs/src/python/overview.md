@@ -29,25 +29,25 @@ pip install unimorph-rs[polars]
 from unimorph import Store, download
 
 # Download a language dataset (one-time)
-download("ita")  # Italian
+download("spa")  # Spanish
 
 # Create a store to query the data
 store = Store()
 
 # Get all inflected forms of a lemma
-forms = store.inflect("ita", "parlare")
+forms = store.inflect("spa", "hablar")
 for entry in forms:
     print(f"{entry.form}: {entry.features}")
 ```
 
 Output:
 ```
-parlare: V;NFIN
-parlando: V;V.PTCP;PRS
-parlato: V;V.PTCP;PST
-parlo: V;IND;PRS;1;SG
-parli: V;IND;PRS;2;SG
-parla: V;IND;PRS;3;SG
+hablar: V;NFIN
+hablando: V;V.CVB;PRS
+hablado: V;V.PTCP;PST;MASC;SG
+hablo: V;IND;PRS;1;SG
+hablas: V;IND;PRS;2;SG
+habla: V;IND;PRS;3;SG
 ...
 ```
 
@@ -109,7 +109,7 @@ entries = store.search_features("spa", "SBJV;PST", limit=100)
 Get statistics about a downloaded language dataset.
 
 ```python
-stats = store.stats("ita")
+stats = store.stats("spa")
 if stats:
     print(f"Entries: {stats.total_entries}")
     print(f"Unique lemmas: {stats.unique_lemmas}")
@@ -143,29 +143,29 @@ All query methods have `_df` variants that return Polars DataFrames for easy dat
 ```python
 from unimorph import Store, download
 
-download("ita")
+download("spa")
 store = Store()
 
 # Get results as a DataFrame
-df = store.inflect_df("ita", "essere")
+df = store.inflect_df("spa", "ser")
 print(df)
 ```
 
 Output:
 ```
-shape: (48, 3)
-+--------+---------+-------------------+
-| lemma  | form    | features          |
-| ---    | ---     | ---               |
-| str    | str     | str               |
-+--------+---------+-------------------+
-| essere | essere  | V;NFIN            |
-| essere | essendo | V;V.PTCP;PRS      |
-| essere | stato   | V;V.PTCP;PST      |
-| essere | sono    | V;IND;PRS;1;SG    |
-| essere | sei     | V;IND;PRS;2;SG    |
-| ...    | ...     | ...               |
-+--------+---------+-------------------+
+shape: (70, 3)
++-------+---------+------------------------+
+| lemma | form    | features               |
+| ---   | ---     | ---                    |
+| str   | str     | str                    |
++-------+---------+------------------------+
+| ser   | ser     | V;NFIN                 |
+| ser   | siendo  | V;V.CVB;PRS            |
+| ser   | sido    | V;V.PTCP;PST;MASC;SG   |
+| ser   | soy     | V;IND;PRS;1;SG         |
+| ser   | eres    | V;IND;PRS;2;SG         |
+| ...   | ...     | ...                    |
++-------+---------+------------------------+
 ```
 
 ### DataFrame Methods
@@ -179,7 +179,7 @@ shape: (48, 3)
 ```python
 import polars as pl
 
-df = store.inflect_df("ita", "parlare")
+df = store.inflect_df("spa", "hablar")
 
 # Filter to indicative mood only
 indicative = df.filter(pl.col("features").str.contains("IND"))
@@ -209,11 +209,11 @@ Query results return `Entry` objects with the following attributes:
 | `features` | str | UniMorph feature bundle (semicolon-separated) |
 
 ```python
-entry = store.inflect("ita", "parlare")[0]
-print(entry.lemma)     # "parlare"
-print(entry.form)      # "parlare"
+entry = store.inflect("spa", "hablar")[0]
+print(entry.lemma)     # "hablar"
+print(entry.form)      # "hablar"
 print(entry.features)  # "V;NFIN"
-print(repr(entry))     # Entry(lemma='parlare', form='parlare', features='V;NFIN')
+print(repr(entry))     # Entry(lemma='hablar', form='hablar', features='V;NFIN')
 ```
 
 ## DatasetStats Objects

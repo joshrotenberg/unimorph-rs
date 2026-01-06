@@ -19,22 +19,22 @@ pip install unimorph-rs[polars]
 ```python
 from unimorph import Store, download
 
-# Download Italian data
-download("ita")
+# Download Spanish data
+download("spa")
 
 # Create a store
 store = Store()
 
 # Get all inflected forms of a lemma
-forms = store.inflect("ita", "parlare")
+forms = store.inflect("spa", "hablar")
 for entry in forms:
     print(f"{entry.form}: {entry.features}")
 
 # Analyze a word form
-analyses = store.analyze("ita", "parlo")
+analyses = store.analyze("spa", "hablo")
 
-# Get results as Polars DataFrames
-df = store.inflect_df("ita", "parlare")
+# Get results as Polars DataFrames (requires unimorph-rs[polars])
+df = store.inflect_df("spa", "hablar")
 print(df)
 ```
 

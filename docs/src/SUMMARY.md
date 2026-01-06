@@ -24,7 +24,9 @@
     - [features](./cli/features.md)
     - [delete](./cli/delete.md)
     - [repair](./cli/repair.md)
+    - [sample](./cli/sample.md)
     - [config](./cli/config.md)
+    - [completions](./cli/completions.md)
 
 # Library Reference
 

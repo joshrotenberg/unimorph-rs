@@ -29,14 +29,14 @@ Run with a persistent data cache:
 
 ```bash
 # Download a dataset
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download ita
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download spa
 
 # Query the data
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect ita parlare
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect spa hablar
 
 # Export data
 docker run -v ~/.cache/unimorph:/data -v $(pwd):/output ghcr.io/joshrotenberg/unimorph-rs \
-    export ita -f jsonl -o /output/italian.jsonl
+    export spa -f jsonl -o /output/spanish.jsonl
 ```
 
 You can also create a shell alias for convenience:
