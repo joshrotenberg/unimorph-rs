@@ -15,6 +15,7 @@ use crate::util::{create_repo, validate_lang_code};
 pub async fn cmd_download(
     lang: &str,
     force: bool,
+    json: bool,
     quiet: bool,
     data_dir: Option<&Path>,
 ) -> Result<()> {
@@ -26,7 +27,16 @@ pub async fn cmd_download(
 
     // Check if already cached (for non-force downloads)
     if !force && repo.store().has_language(lang)? {
-        if !quiet {
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "lang": lang,
+                    "status": "cached",
+                    "message": "Already cached. Use --force to re-download."
+                })
+            );
+        } else if !quiet {
             println!("{} is already cached. Use --force to re-download.", lang);
         }
         return Ok(());
@@ -104,18 +114,13 @@ pub async fn cmd_download(
         pb.finish_and_clear();
     }
 
-    // Show download summary
-    if !quiet
-        && let Ok(total) = total_downloaded.lock()
-        && *total > 0
-    {
-        println!("Downloaded {}", HumanBytes(*total));
-    }
+    let bytes_downloaded = total_downloaded.lock().map(|t| *t).unwrap_or(0);
 
     let stats = repo
         .store()
         .stats(lang)?
         .context("Failed to retrieve stats after download")?;
+
     info!(
         lang,
         entries = stats.total_entries,
@@ -123,7 +128,23 @@ pub async fn cmd_download(
         forms = stats.unique_forms,
         "download complete"
     );
-    if !quiet {
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "lang": lang,
+                "status": "downloaded",
+                "bytes": bytes_downloaded,
+                "entries": stats.total_entries,
+                "lemmas": stats.unique_lemmas,
+                "forms": stats.unique_forms
+            })
+        );
+    } else if !quiet {
+        if bytes_downloaded > 0 {
+            println!("Downloaded {}", HumanBytes(bytes_downloaded));
+        }
         println!(
             "{}: {} entries, {} lemmas, {} forms",
             lang, stats.total_entries, stats.unique_lemmas, stats.unique_forms
