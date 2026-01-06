@@ -147,6 +147,11 @@ enum Commands {
         #[arg(short, long)]
         features: Option<String>,
 
+        /// Filter by features contained (comma-separated, position-independent)
+        /// Example: --contains PL,MASC finds entries with both PL and MASC
+        #[arg(short, long, value_delimiter = ',')]
+        contains: Option<Vec<String>>,
+
         /// Filter by part of speech (e.g., V, N, ADJ)
         #[arg(long)]
         pos: Option<String>,
@@ -328,6 +333,7 @@ async fn main() -> Result<()> {
             lemma,
             form,
             features,
+            contains,
             pos,
             limit,
             offset,
@@ -338,6 +344,7 @@ async fn main() -> Result<()> {
             lemma.as_deref(),
             form.as_deref(),
             features.as_deref(),
+            contains,
             pos.as_deref(),
             limit,
             offset,
