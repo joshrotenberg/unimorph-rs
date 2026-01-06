@@ -218,12 +218,29 @@ impl Store {
     /// ```
     #[instrument(level = "debug", skip(self, path), fields(lang = %lang))]
     pub fn export_tsv<P: AsRef<Path>>(&self, lang: &str, path: P) -> Result<usize> {
-        use std::io::Write;
         debug!(path = %path.as_ref().display(), "exporting to TSV");
-
         let file = std::fs::File::create(path.as_ref())?;
-        let mut writer = std::io::BufWriter::new(file);
+        let writer = std::io::BufWriter::new(file);
+        self.export_tsv_to_writer(lang, writer)
+    }
 
+    /// Export a language dataset to TSV format, writing to a generic writer.
+    ///
+    /// This is useful for writing to stdout or other non-file destinations.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let store = Store::open("datasets.db")?;
+    /// let stdout = std::io::stdout().lock();
+    /// store.export_tsv_to_writer("ita", stdout)?;
+    /// ```
+    #[instrument(level = "debug", skip(self, writer), fields(lang = %lang))]
+    pub fn export_tsv_to_writer<W: std::io::Write>(
+        &self,
+        lang: &str,
+        mut writer: W,
+    ) -> Result<usize> {
         let mut stmt = self
             .conn
             .prepare("SELECT lemma, form, features FROM entries WHERE lang = ?")?;
@@ -257,12 +274,29 @@ impl Store {
     /// ```
     #[instrument(level = "debug", skip(self, path), fields(lang = %lang))]
     pub fn export_jsonl<P: AsRef<Path>>(&self, lang: &str, path: P) -> Result<usize> {
-        use std::io::Write;
         debug!(path = %path.as_ref().display(), "exporting to JSONL");
-
         let file = std::fs::File::create(path.as_ref())?;
-        let mut writer = std::io::BufWriter::new(file);
+        let writer = std::io::BufWriter::new(file);
+        self.export_jsonl_to_writer(lang, writer)
+    }
 
+    /// Export a language dataset to JSON Lines format, writing to a generic writer.
+    ///
+    /// This is useful for writing to stdout or other non-file destinations.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let store = Store::open("datasets.db")?;
+    /// let stdout = std::io::stdout().lock();
+    /// store.export_jsonl_to_writer("ita", stdout)?;
+    /// ```
+    #[instrument(level = "debug", skip(self, writer), fields(lang = %lang))]
+    pub fn export_jsonl_to_writer<W: std::io::Write>(
+        &self,
+        lang: &str,
+        mut writer: W,
+    ) -> Result<usize> {
         let mut stmt = self.conn.prepare(
             "SELECT lemma, form, features FROM entries WHERE lang = ? ORDER BY lemma, form",
         )?;
