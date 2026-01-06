@@ -34,6 +34,10 @@
 - [Repository](./library/repository.md)
 - [Query Builder](./library/query.md)
 
+# Python Bindings
+
+- [Overview](./python/overview.md)
+
 # UniMorph Data
 
 - [About UniMorph](./unimorph/about.md)

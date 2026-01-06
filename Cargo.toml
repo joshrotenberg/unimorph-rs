@@ -49,3 +49,7 @@ octocrab = "0.44"
 # Export formats
 parquet = { version = "54", features = ["snap"] }
 arrow = { version = "54", default-features = false }
+
+# Python bindings
+pyo3 = { version = "0.24", features = ["extension-module"] }
+pyo3-build-config = "0.24"
