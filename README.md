@@ -110,13 +110,32 @@ Full documentation is available at **[joshrotenberg.github.io/unimorph-rs](https
 - [Configuration Options](https://joshrotenberg.github.io/unimorph-rs/configuration.html)
 - [UniMorph Schema Reference](https://joshrotenberg.github.io/unimorph-rs/unimorph/schema.html)
 
+## Python Bindings
+
+```bash
+pip install unimorph-rs
+```
+
+```python
+from unimorph import Store, download
+
+download("ita")
+store = Store()
+
+for entry in store.inflect("ita", "parlare"):
+    print(f"{entry.form}: {entry.features}")
+```
+
+See the [Python documentation](https://joshrotenberg.github.io/unimorph-rs/python/overview.html) for more details.
+
 ## Project Structure
 
 ```
 unimorph-rs/
 ├── crates/
 │   ├── unimorph-core/   # Core library: types, SQLite store, repository
-│   └── unimorph-cli/    # Command-line interface
+│   ├── unimorph-cli/    # Command-line interface
+│   └── unimorph-python/ # Python bindings (PyO3)
 └── docs/                # mdBook documentation
 ```
 
