@@ -18,7 +18,7 @@ use color_eyre::eyre::eyre;
 use commands::{
     ExportFormat, cmd_analyze, cmd_config_init, cmd_config_path, cmd_config_show, cmd_delete,
     cmd_download, cmd_export, cmd_features, cmd_inflect, cmd_info, cmd_list, cmd_repair,
-    cmd_search, cmd_stats, cmd_update,
+    cmd_sample, cmd_search, cmd_stats, cmd_update,
 };
 use config::Config;
 
@@ -312,6 +312,35 @@ enum Commands {
         json: bool,
     },
 
+    /// Randomly sample entries from a language dataset
+    #[command(visible_alias = "rand")]
+    Sample {
+        /// Number of entries to sample
+        n: usize,
+
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        #[arg(short, long)]
+        lang: Option<String>,
+
+        /// Seed for reproducible sampling
+        #[arg(short, long)]
+        seed: Option<u64>,
+
+        /// Sample complete paradigms (all forms of selected lemmas)
+        /// instead of random individual entries
+        #[arg(long)]
+        by_lemma: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Output as TSV (tab-separated, no headers) for piping
+        #[arg(long)]
+        tsv: bool,
+    },
+
     /// Manage configuration
     #[command(visible_alias = "cfg")]
     Config {
@@ -553,6 +582,19 @@ async fn main() -> Result<()> {
                 json,
                 data_dir.as_deref(),
             )
+        }
+        Commands::Sample {
+            n,
+            lang,
+            seed,
+            by_lemma,
+            json,
+            tsv,
+        } => {
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
+            cmd_sample(&lang, n, seed, by_lemma, json, tsv, data_dir.as_deref())
         }
         Commands::Config { action } => match action {
             ConfigAction::Show { json } => cmd_config_show(json),

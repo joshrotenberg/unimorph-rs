@@ -365,6 +365,213 @@ impl Store {
             Err(e) => Err(e.into()),
         }
     }
+
+    /// Randomly sample entries from a language dataset.
+    ///
+    /// Uses SQLite's random() for efficient sampling without loading
+    /// the entire dataset into memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `lang` - Language code
+    /// * `n` - Number of entries to sample
+    /// * `seed` - Optional seed for reproducible sampling
+    #[instrument(level = "debug", skip(self))]
+    pub fn sample(&self, lang: &str, n: usize, seed: Option<u64>) -> Result<Vec<Entry>> {
+        // If seed is provided, we need deterministic sampling
+        // SQLite's random() isn't seedable, so we use a different approach
+        if let Some(seed) = seed {
+            self.sample_seeded(lang, n, seed)
+        } else {
+            self.sample_random(lang, n)
+        }
+    }
+
+    /// Random sampling using SQLite's random() function.
+    fn sample_random(&self, lang: &str, n: usize) -> Result<Vec<Entry>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT lemma, form, features FROM entries
+             WHERE lang = ?
+             ORDER BY random()
+             LIMIT ?",
+        )?;
+
+        let entries = stmt
+            .query_map(params![lang, n as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .filter_map(|(lemma, form, features)| {
+                FeatureBundle::new(&features)
+                    .ok()
+                    .map(|fb| Entry::new(lemma, form, fb))
+            })
+            .collect();
+
+        Ok(entries)
+    }
+
+    /// Deterministic sampling using a seed.
+    ///
+    /// Uses a simple hash-based approach: hash(id + seed) and take top N.
+    fn sample_seeded(&self, lang: &str, n: usize, seed: u64) -> Result<Vec<Entry>> {
+        // Get total count first
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM entries WHERE lang = ?",
+            params![lang],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            return Ok(vec![]);
+        }
+
+        // For seeded sampling, we fetch IDs, shuffle deterministically, then fetch entries
+        let mut stmt = self.conn.prepare("SELECT id FROM entries WHERE lang = ?")?;
+
+        let mut ids: Vec<i64> = stmt
+            .query_map(params![lang], |row| row.get::<_, i64>(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Deterministic shuffle using seed
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        ids.sort_by(|a, b| {
+            let mut ha = DefaultHasher::new();
+            (*a as u64).hash(&mut ha);
+            seed.hash(&mut ha);
+            let hash_a = ha.finish();
+
+            let mut hb = DefaultHasher::new();
+            (*b as u64).hash(&mut hb);
+            seed.hash(&mut hb);
+            let hash_b = hb.finish();
+
+            hash_a.cmp(&hash_b)
+        });
+
+        ids.truncate(n);
+
+        // Fetch the selected entries
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let placeholders: String = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let query = format!(
+            "SELECT lemma, form, features FROM entries WHERE id IN ({})",
+            placeholders
+        );
+
+        let mut stmt = self.conn.prepare(&query)?;
+
+        let entries = stmt
+            .query_map(rusqlite::params_from_iter(ids.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .filter_map(|(lemma, form, features)| {
+                FeatureBundle::new(&features)
+                    .ok()
+                    .map(|fb| Entry::new(lemma, form, fb))
+            })
+            .collect();
+
+        Ok(entries)
+    }
+
+    /// Sample complete paradigms (all forms of selected lemmas).
+    ///
+    /// This is useful for morphological inflection tasks where you want
+    /// complete paradigms in your sample rather than random individual forms.
+    ///
+    /// # Arguments
+    ///
+    /// * `lang` - Language code
+    /// * `n` - Approximate number of entries (samples lemmas until reaching n)
+    /// * `seed` - Optional seed for reproducible sampling
+    #[instrument(level = "debug", skip(self))]
+    pub fn sample_by_lemma(&self, lang: &str, n: usize, seed: Option<u64>) -> Result<Vec<Entry>> {
+        // Get all unique lemmas
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT lemma FROM entries WHERE lang = ?")?;
+
+        let mut lemmas: Vec<String> = stmt
+            .query_map(params![lang], |row| row.get::<_, String>(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        if lemmas.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Shuffle lemmas (deterministically if seed provided)
+        if let Some(seed) = seed {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+
+            lemmas.sort_by(|a, b| {
+                let mut ha = DefaultHasher::new();
+                a.hash(&mut ha);
+                seed.hash(&mut ha);
+                let hash_a = ha.finish();
+
+                let mut hb = DefaultHasher::new();
+                b.hash(&mut hb);
+                seed.hash(&mut hb);
+                let hash_b = hb.finish();
+
+                hash_a.cmp(&hash_b)
+            });
+        } else {
+            // Random shuffle
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            use std::time::SystemTime;
+
+            let random_seed = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u64;
+
+            lemmas.sort_by(|a, b| {
+                let mut ha = DefaultHasher::new();
+                a.hash(&mut ha);
+                random_seed.hash(&mut ha);
+                let hash_a = ha.finish();
+
+                let mut hb = DefaultHasher::new();
+                b.hash(&mut hb);
+                random_seed.hash(&mut hb);
+                let hash_b = hb.finish();
+
+                hash_a.cmp(&hash_b)
+            });
+        }
+
+        // Collect entries until we have enough
+        let mut entries = Vec::new();
+        for lemma in lemmas {
+            if entries.len() >= n {
+                break;
+            }
+            let mut lemma_entries = self.inflect(lang, &lemma)?;
+            entries.append(&mut lemma_entries);
+        }
+
+        Ok(entries)
+    }
 }
 
 /// Simple timestamp without pulling in chrono.
@@ -503,5 +710,79 @@ mod tests {
         let fewer = vec![Entry::parse_line("parlare\tparlo\tV;IND;PRS;1;SG", 1).unwrap()];
         store.import(&lang, &fewer, None, None).unwrap();
         assert_eq!(store.stats("ita").unwrap().unwrap().total_entries, 1);
+    }
+
+    #[test]
+    fn sample_random() {
+        let mut store = Store::in_memory().unwrap();
+        let lang: LangCode = "ita".parse().unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
+
+        let sampled = store.sample("ita", 3, None).unwrap();
+        assert_eq!(sampled.len(), 3);
+
+        // Sampling more than available returns all
+        let sampled = store.sample("ita", 100, None).unwrap();
+        assert_eq!(sampled.len(), 6);
+    }
+
+    #[test]
+    fn sample_seeded_is_deterministic() {
+        let mut store = Store::in_memory().unwrap();
+        let lang: LangCode = "ita".parse().unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
+
+        let sample1 = store.sample("ita", 3, Some(42)).unwrap();
+        let sample2 = store.sample("ita", 3, Some(42)).unwrap();
+
+        // Same seed should produce same results
+        assert_eq!(sample1.len(), sample2.len());
+        for (e1, e2) in sample1.iter().zip(sample2.iter()) {
+            assert_eq!(e1.lemma, e2.lemma);
+            assert_eq!(e1.form, e2.form);
+        }
+
+        // Different seed should (likely) produce different results
+        let sample3 = store.sample("ita", 3, Some(99)).unwrap();
+        let different = sample1
+            .iter()
+            .zip(sample3.iter())
+            .any(|(e1, e2)| e1.form != e2.form);
+        assert!(
+            different,
+            "Different seeds should produce different samples"
+        );
+    }
+
+    #[test]
+    fn sample_by_lemma() {
+        let mut store = Store::in_memory().unwrap();
+        let lang: LangCode = "ita".parse().unwrap();
+        store.import(&lang, &sample_entries(), None, None).unwrap();
+
+        // Sample ~3 entries by lemma - should get complete paradigm
+        let sampled = store.sample_by_lemma("ita", 3, Some(42)).unwrap();
+
+        // Should have at least 3 entries
+        assert!(sampled.len() >= 3);
+
+        // All entries should be from the same lemma (since we asked for ~3 and each lemma has 3)
+        let lemmas: std::collections::HashSet<_> = sampled.iter().map(|e| &e.lemma).collect();
+        assert!(
+            lemmas.len() <= 2,
+            "Should have entries from 1-2 lemmas, got {}",
+            lemmas.len()
+        );
+    }
+
+    #[test]
+    fn sample_empty_language() {
+        let store = Store::in_memory().unwrap();
+
+        let sampled = store.sample("xxx", 10, None).unwrap();
+        assert!(sampled.is_empty());
+
+        let sampled = store.sample_by_lemma("xxx", 10, None).unwrap();
+        assert!(sampled.is_empty());
     }
 }
