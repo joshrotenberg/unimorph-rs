@@ -5,6 +5,10 @@ use std::path::Path;
 use color_eyre::eyre::Result;
 use tracing::{debug, instrument};
 
+use crate::colors::{
+    dim_style, feature_style, form_style, header_style, lemma_style, number_style, should_colorize,
+    styled,
+};
 use crate::util::{create_repo, require_language, validate_lang_code};
 
 #[instrument(skip_all, fields(lang, lemma))]
@@ -56,13 +60,27 @@ pub fn cmd_inflect(
     if json {
         println!("{}", serde_json::to_string_pretty(&entries)?);
     } else {
-        println!("{:<20} {:<20} FEATURES", "LEMMA", "FORM");
-        println!("{}", "-".repeat(60));
+        let color = should_colorize();
+        println!(
+            "{:<20} {:<20} {}",
+            styled("LEMMA", header_style(), color),
+            styled("FORM", header_style(), color),
+            styled("FEATURES", header_style(), color)
+        );
+        println!("{}", styled("-".repeat(60), dim_style(), color));
         for entry in &entries {
-            println!("{:<20} {:<20} {}", entry.lemma, entry.form, entry.features);
+            println!(
+                "{:<20} {:<20} {}",
+                styled(&entry.lemma, lemma_style(), color),
+                styled(&entry.form, form_style(), color),
+                styled(&entry.features, feature_style(), color)
+            );
         }
         println!();
-        println!("{} form(s) found.", entries.len());
+        println!(
+            "{} form(s) found.",
+            styled(entries.len(), number_style(), color)
+        );
     }
 
     Ok(())

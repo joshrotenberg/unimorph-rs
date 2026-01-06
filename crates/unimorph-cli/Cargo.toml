@@ -31,6 +31,7 @@ color-eyre.workspace = true
 octocrab.workspace = true
 dirs.workspace = true
 chrono = "0.4"
+owo-colors = "4"
 
 [dev-dependencies]
 assert_cmd = "2"

@@ -4747,6 +4747,7 @@ dependencies = [
  "dirs",
  "indicatif",
  "octocrab",
+ "owo-colors",
  "predicates",
  "serde",
  "serde_json",
