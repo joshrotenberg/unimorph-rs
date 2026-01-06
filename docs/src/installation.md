@@ -14,7 +14,7 @@ brew install unimorph
 If you have Rust installed:
 
 ```bash
-cargo install unimorph-cli
+cargo install unimorph
 ```
 
 ### Docker
@@ -50,7 +50,7 @@ alias unimorph='docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unim
 ```bash
 git clone https://github.com/joshrotenberg/unimorph-rs
 cd unimorph-rs
-cargo install --path crates/unimorph-cli
+cargo install --path crates/unimorph-cli  # directory still named unimorph-cli
 ```
 
 ## Rust Library

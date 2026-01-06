@@ -1,6 +1,6 @@
 # unimorph-rs
 
-[![Crates.io](https://img.shields.io/crates/v/unimorph-cli)](https://crates.io/crates/unimorph-cli)
+[![Crates.io](https://img.shields.io/crates/v/unimorph)](https://crates.io/crates/unimorph)
 [![Documentation](https://img.shields.io/badge/docs-mdBook-blue)](https://joshrotenberg.github.io/unimorph-rs/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -29,7 +29,7 @@ brew install unimorph
 ### Cargo
 
 ```bash
-cargo install unimorph-cli
+cargo install unimorph
 ```
 
 ### Docker
@@ -47,7 +47,7 @@ docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect 
 ```bash
 git clone https://github.com/joshrotenberg/unimorph-rs
 cd unimorph-rs
-cargo install --path crates/unimorph-cli
+cargo install --path crates/unimorph-cli  # directory still named unimorph-cli
 ```
 
 ## Quick Start

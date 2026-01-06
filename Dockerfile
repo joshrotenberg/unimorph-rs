@@ -14,7 +14,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
 # Build release binary
-RUN cargo build --release -p unimorph-cli
+RUN cargo build --release -p unimorph
 
 # Runtime stage
 FROM debian:bookworm-slim
