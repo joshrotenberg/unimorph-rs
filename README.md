@@ -1,6 +1,12 @@
 # unimorph-rs
 
+[![Documentation](https://img.shields.io/badge/docs-mdBook-blue)](https://joshrotenberg.github.io/unimorph-rs/)
+[![Crates.io](https://img.shields.io/crates/v/unimorph-core)](https://crates.io/crates/unimorph-core)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 A Rust toolkit for working with [UniMorph](https://unimorph.github.io/) morphological data.
+
+**[Documentation](https://joshrotenberg.github.io/unimorph-rs/)** | **[Crates.io](https://crates.io/crates/unimorph-core)** | **[GitHub](https://github.com/joshrotenberg/unimorph-rs)**
 
 ## What is UniMorph?
 
