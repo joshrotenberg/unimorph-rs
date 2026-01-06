@@ -40,6 +40,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Download a language dataset
+    #[command(visible_alias = "dl")]
     Download {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -50,6 +51,7 @@ enum Commands {
     },
 
     /// List languages
+    #[command(visible_alias = "ls")]
     List {
         /// Show only cached (downloaded) languages
         #[arg(long)]
@@ -69,6 +71,7 @@ enum Commands {
     },
 
     /// Look up all forms of a lemma (dictionary form)
+    #[command(visible_alias = "i")]
     Inflect {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -86,6 +89,7 @@ enum Commands {
     },
 
     /// Analyze a surface form (reverse lookup)
+    #[command(visible_alias = "a")]
     Analyze {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -99,6 +103,7 @@ enum Commands {
     },
 
     /// Show dataset statistics
+    #[command(visible_alias = "st")]
     Stats {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -109,12 +114,14 @@ enum Commands {
     },
 
     /// Delete a cached language dataset
+    #[command(visible_alias = "rm")]
     Delete {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
     },
 
     /// Search entries with flexible filtering
+    #[command(visible_alias = "s")]
     Search {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -153,6 +160,7 @@ enum Commands {
     },
 
     /// Export a language dataset to file
+    #[command(visible_alias = "x")]
     Export {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -173,6 +181,7 @@ enum Commands {
     },
 
     /// Show detailed info about a cached language
+    #[command(visible_alias = "in")]
     Info {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
@@ -183,6 +192,7 @@ enum Commands {
     },
 
     /// Update cached language datasets
+    #[command(visible_alias = "up")]
     Update {
         /// Language code (omit with --all to update all)
         lang: Option<String>,
@@ -212,6 +222,7 @@ enum Commands {
     },
 
     /// Explore morphological features in a language
+    #[command(visible_alias = "f")]
     Features {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
         lang: String,
