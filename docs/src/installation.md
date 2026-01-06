@@ -5,7 +5,8 @@
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install joshrotenberg/tap/unimorph
+brew tap joshrotenberg/brew
+brew install unimorph
 ```
 
 ### Cargo (from crates.io)
@@ -14,6 +15,34 @@ If you have Rust installed:
 
 ```bash
 cargo install unimorph-cli
+```
+
+### Docker
+
+Pull the image from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/joshrotenberg/unimorph-rs:latest
+```
+
+Run with a persistent data cache:
+
+```bash
+# Download a dataset
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download ita
+
+# Query the data
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect ita parlare
+
+# Export data
+docker run -v ~/.cache/unimorph:/data -v $(pwd):/output ghcr.io/joshrotenberg/unimorph-rs \
+    export ita -f jsonl -o /output/italian.jsonl
+```
+
+You can also create a shell alias for convenience:
+
+```bash
+alias unimorph='docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs'
 ```
 
 ### From Source

@@ -32,6 +32,16 @@ brew install unimorph
 cargo install unimorph-cli
 ```
 
+### Docker
+
+```bash
+docker pull ghcr.io/joshrotenberg/unimorph-rs:latest
+
+# Run with persistent data cache
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download ita
+docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect ita parlare
+```
+
 ### From source
 
 ```bash
