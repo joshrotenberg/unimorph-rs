@@ -20,6 +20,7 @@ use commands::{
 #[derive(Parser)]
 #[command(name = "unimorph")]
 #[command(author, version, about = "Work with UniMorph morphological data", long_about = None)]
+#[command(infer_subcommands = true)]
 struct Cli {
     /// Enable verbose output (-v for debug, -vv for trace)
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
