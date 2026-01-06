@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-01-06
+
+### Miscellaneous Tasks
+
+- Release v0.1.0 ([#51](https://github.com/joshrotenberg/unimorph-rs/pull/51))
+
+
+
 ## [0.1.0] - 2026-01-06
 
 ### Bug Fixes
