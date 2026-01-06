@@ -134,7 +134,7 @@ default_lang = "heb"
 # Language aliases
 [languages]
 hebrew = "heb"
-italian = "ita"
+spanish = "spa"
 ```
 
 ## See Also

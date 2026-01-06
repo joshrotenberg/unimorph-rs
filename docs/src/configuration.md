@@ -42,7 +42,7 @@ default_lang = "heb"
 # Language aliases for convenience
 [languages]
 hebrew = "heb"
-italian = "ita"
+spanish = "spa"
 german = "deu"
 spanish = "spa"
 finnish = "fin"
@@ -55,7 +55,7 @@ Define shortcuts for language codes:
 ```toml
 [languages]
 he = "heb"
-it = "ita"
+it = "spa"
 de = "deu"
 ```
 

@@ -33,7 +33,7 @@ UniMorph uses ISO 639-3 three-letter language codes:
 | `heb` | Hebrew |
 | `hin` | Hindi |
 | `hun` | Hungarian |
-| `ita` | Italian |
+| `ita` | Spanish |
 | `jpn` | Japanese |
 | `kat` | Georgian |
 | `kor` | Korean |
@@ -60,7 +60,7 @@ Dataset sizes vary significantly:
 | Finnish (`fin`) | 2.7M+ | 50K+ |
 | Spanish (`spa`) | 1.2M+ | 10K+ |
 | German (`deu`) | 500K+ | 50K+ |
-| Italian (`ita`) | 500K+ | 10K+ |
+| Spanish (`ita`) | 500K+ | 10K+ |
 | Hebrew (`heb`) | 33K+ | 1K+ |
 
 Check specific sizes with:
@@ -79,7 +79,7 @@ https://github.com/unimorph/<code>
 
 For example:
 - Hebrew: [github.com/unimorph/heb](https://github.com/unimorph/heb)
-- Italian: [github.com/unimorph/ita](https://github.com/unimorph/ita)
+- Spanish: [github.com/unimorph/ita](https://github.com/unimorph/ita)
 - Finnish: [github.com/unimorph/fin](https://github.com/unimorph/fin)
 
 You can also browse all languages on the [UniMorph website](https://unimorph.github.io/).
@@ -118,7 +118,7 @@ Create shortcuts for frequently used languages:
 # ~/.config/unimorph/config.toml
 [languages]
 hebrew = "heb"
-italian = "ita"
+spanish = "spa"
 german = "deu"
 finnish = "fin"
 ```

@@ -6,14 +6,14 @@
 
 UniMorph is a collaborative project providing morphological paradigms for the world's languages. Each language dataset contains entries mapping lemmas (dictionary forms) to their inflected forms along with morphological feature annotations.
 
-For example, in Italian:
+For example, in Spanish:
 
 | Lemma | Form | Features |
 |-------|------|----------|
-| parlare | parlo | V;IND;PRS;1;SG |
-| parlare | parli | V;IND;PRS;2;SG |
-| parlare | parla | V;IND;PRS;3;SG |
-| parlare | parliamo | V;IND;PRS;1;PL |
+| hablar | hablo | V;IND;PRS;1;SG |
+| hablar | hablas | V;IND;PRS;2;SG |
+| hablar | habla | V;IND;PRS;3;SG |
+| hablar | hablamos | V;IND;PRS;1;PL |
 
 ## Features
 

@@ -22,14 +22,14 @@ Each entry is a triple:
 lemma <TAB> form <TAB> features
 ```
 
-Example (Italian):
+Example (Spanish):
 ```
-parlare	parlo	V;IND;PRS;1;SG
-parlare	parli	V;IND;PRS;2;SG
-parlare	parla	V;IND;PRS;3;SG
-parlare	parliamo	V;IND;PRS;1;PL
-parlare	parlate	V;IND;PRS;2;PL
-parlare	parlano	V;IND;PRS;3;PL
+hablar	hablo	V;IND;PRS;1;SG
+hablar	hablas	V;IND;PRS;2;SG
+hablar	habla	V;IND;PRS;3;SG
+hablar	hablamos	V;IND;PRS;1;PL
+hablar	habláis	V;IND;PRS;2;PL
+hablar	hablan	V;IND;PRS;3;PL
 ```
 
 ### Coverage

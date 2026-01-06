@@ -104,7 +104,7 @@ unimorph update --all --check --json
   "languages": [
     {"code": "fin", "update_available": false},
     {"code": "heb", "update_available": true},
-    {"code": "ita", "update_available": false}
+    {"code": "spa", "update_available": false}
   ],
   "updates_available": 1
 }

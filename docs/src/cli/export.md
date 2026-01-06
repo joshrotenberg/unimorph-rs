@@ -97,8 +97,8 @@ lemma<TAB>form<TAB>features
 
 Example:
 ```
-parlare	parlo	V;IND;PRS;1;SG
-parlare	parli	V;IND;PRS;2;SG
+hablar	hablo	V;IND;PRS;1;SG
+hablar	hablas	V;IND;PRS;2;SG
 ```
 
 ### JSONL (JSON Lines)
@@ -106,8 +106,8 @@ parlare	parli	V;IND;PRS;2;SG
 One JSON object per line:
 
 ```json
-{"lemma":"parlare","form":"parlo","features":"V;IND;PRS;1;SG"}
-{"lemma":"parlare","form":"parli","features":"V;IND;PRS;2;SG"}
+{"lemma":"hablar","form":"hablo","features":"V;IND;PRS;1;SG"}
+{"lemma":"hablar","form":"hablas","features":"V;IND;PRS;2;SG"}
 ```
 
 ## Notes
