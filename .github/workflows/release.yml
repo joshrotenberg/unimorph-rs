@@ -3,7 +3,7 @@ name: Build Release Binaries
 on:
   push:
     tags:
-      - "unimorph-cli-v[0-9]+.*"
+      - "unimorph-v[0-9]+.*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -42,7 +42,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p unimorph-cli
+        run: cargo build --release --target ${{ matrix.target }} -p unimorph
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -79,8 +79,8 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          # Tag is like unimorph-cli-v0.1.0, extract 0.1.0
-          VERSION=${GITHUB_REF_NAME#unimorph-cli-v}
+          # Tag is like unimorph-v0.1.0, extract 0.1.0
+          VERSION=${GITHUB_REF_NAME#unimorph-v}
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building version: ${VERSION}"
 

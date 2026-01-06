@@ -42,13 +42,13 @@ jobs:
       - name: Parse release info
         id: parse
         run: |
-          VERSION=$(echo '${{ needs.release-plz.outputs.releases }}' | jq -r '.[] | select(.package_name == "unimorph-cli") | .version')
+          VERSION=$(echo '${{ needs.release-plz.outputs.releases }}' | jq -r '.[] | select(.package_name == "unimorph") | .version')
           if [ -n "$VERSION" ] && [ "$VERSION" != "null" ]; then
             echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "tag=unimorph-cli-v${VERSION}" >> $GITHUB_OUTPUT
-            echo "Released unimorph-cli version: ${VERSION} (tag: unimorph-cli-v${VERSION})"
+            echo "tag=unimorph-v${VERSION}" >> $GITHUB_OUTPUT
+            echo "Released unimorph version: ${VERSION} (tag: unimorph-v${VERSION})"
           else
-            echo "No unimorph-cli release found"
+            echo "No unimorph release found"
             echo "version=" >> $GITHUB_OUTPUT
             echo "tag=" >> $GITHUB_OUTPUT
           fi

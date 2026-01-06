@@ -80,4 +80,4 @@ jobs:
           toolchain: "1.88.0"
       - uses: Swatinem/rust-cache@v2
       - name: Check MSRV (core crates only)
-        run: cargo check -p unimorph-core -p unimorph-cli --all-targets --all-features
+        run: cargo check -p unimorph-core -p unimorph --all-targets --all-features
