@@ -29,9 +29,36 @@
 
 use std::path::{Path, PathBuf};
 
+use futures_util::StreamExt;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{Entry, Error, LangCode, Result, Store};
+
+/// Phase of the download/import operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DownloadPhase {
+    /// Downloading data from GitHub.
+    Downloading,
+    /// Parsing TSV and importing into SQLite.
+    Importing,
+}
+
+/// Progress information for download operations.
+#[derive(Debug, Clone)]
+pub struct DownloadProgress {
+    /// Current phase of the operation.
+    pub phase: DownloadPhase,
+    /// Total bytes expected (if known from Content-Length header).
+    pub total_bytes: Option<u64>,
+    /// Bytes downloaded so far.
+    pub downloaded_bytes: u64,
+    /// Current file being downloaded (for multi-file languages like Finnish).
+    pub current_file: String,
+    /// Total number of files to download.
+    pub total_files: usize,
+    /// Current file index (1-based).
+    pub current_file_index: usize,
+}
 
 const UNIMORPH_RAW_URL: &str = "https://raw.githubusercontent.com/unimorph";
 
@@ -126,6 +153,42 @@ impl Repository {
         self.download_and_import(&lang_code).await
     }
 
+    /// Force re-download and import with progress reporting.
+    ///
+    /// The callback receives `DownloadProgress` updates during the download.
+    #[instrument(level = "info", skip(self, on_progress))]
+    pub async fn refresh_with_progress<F>(&mut self, lang: &str, on_progress: F) -> Result<()>
+    where
+        F: Fn(DownloadProgress) + Send + Sync,
+    {
+        let lang_code = LangCode::new(lang)?;
+        info!(lang, "refreshing language dataset with progress");
+        self.download_and_import_with_progress(&lang_code, on_progress)
+            .await
+    }
+
+    /// Ensure a language is available, with progress reporting.
+    ///
+    /// Like `ensure`, but calls `on_progress` with download progress updates.
+    /// Returns `true` if the dataset was downloaded, `false` if it was already cached.
+    #[instrument(level = "info", skip(self, on_progress))]
+    pub async fn ensure_with_progress<F>(&mut self, lang: &str, on_progress: F) -> Result<bool>
+    where
+        F: Fn(DownloadProgress) + Send + Sync,
+    {
+        let lang_code = LangCode::new(lang)?;
+
+        if self.store.has_language(lang)? {
+            debug!(lang, "language already cached");
+            return Ok(false);
+        }
+
+        info!(lang, "downloading language dataset with progress");
+        self.download_and_import_with_progress(&lang_code, on_progress)
+            .await?;
+        Ok(true)
+    }
+
     /// Download and import a language dataset.
     #[instrument(level = "debug", skip(self))]
     async fn download_and_import(&mut self, lang: &LangCode) -> Result<()> {
@@ -134,6 +197,61 @@ impl Repository {
         debug!(lang = %lang, commit_sha = ?commit_sha, "fetched commit SHA");
 
         let content = download_language(lang).await?;
+        let (entries, skipped) = Entry::parse_tsv_lenient(&content);
+
+        if skipped > 0 {
+            warn!(
+                lang = %lang,
+                skipped,
+                "skipped malformed entries during import"
+            );
+        }
+
+        debug!(
+            lang = %lang,
+            entries = entries.len(),
+            "parsed entries from downloaded data"
+        );
+
+        let source_url = format!("https://github.com/unimorph/{}", lang.as_str());
+
+        self.store
+            .import(lang, &entries, Some(&source_url), commit_sha.as_deref())?;
+        info!(
+            lang = %lang,
+            entries = entries.len(),
+            commit_sha = ?commit_sha,
+            "imported language dataset"
+        );
+        Ok(())
+    }
+
+    /// Download and import a language dataset with progress reporting.
+    #[instrument(level = "debug", skip(self, on_progress))]
+    async fn download_and_import_with_progress<F>(
+        &mut self,
+        lang: &LangCode,
+        on_progress: F,
+    ) -> Result<()>
+    where
+        F: Fn(DownloadProgress) + Send + Sync,
+    {
+        // Fetch commit SHA first
+        let commit_sha = fetch_commit_sha(lang).await.ok();
+        debug!(lang = %lang, commit_sha = ?commit_sha, "fetched commit SHA");
+
+        let content = download_language_with_progress(lang, &on_progress).await?;
+
+        // Signal import phase
+        on_progress(DownloadProgress {
+            phase: DownloadPhase::Importing,
+            total_bytes: None,
+            downloaded_bytes: 0,
+            current_file: String::new(),
+            total_files: 0,
+            current_file_index: 0,
+        });
+
         let (entries, skipped) = Entry::parse_tsv_lenient(&content);
 
         if skipped > 0 {
@@ -226,6 +344,94 @@ async fn download_language(lang: &LangCode) -> Result<String> {
         debug!(url = %url, bytes, "downloaded file");
         all_content.push_str(&content);
         if !content.ends_with('\n') {
+            all_content.push('\n');
+        }
+        found_any = true;
+    }
+
+    if !found_any {
+        return Err(Error::DownloadFailed(format!(
+            "No data files found for language: {}",
+            lang.as_str()
+        )));
+    }
+
+    Ok(all_content)
+}
+
+/// Download a language dataset from GitHub with progress reporting.
+#[instrument(level = "debug", skip(on_progress))]
+async fn download_language_with_progress<F>(lang: &LangCode, on_progress: &F) -> Result<String>
+where
+    F: Fn(DownloadProgress) + Send + Sync,
+{
+    let client = reqwest::Client::new();
+    let patterns = get_file_patterns(lang);
+    let total_files = patterns.len();
+    let mut all_content = String::new();
+    let mut found_any = false;
+
+    debug!(lang = %lang, patterns = ?patterns, "downloading from GitHub with progress");
+
+    for (file_index, pattern) in patterns.iter().enumerate() {
+        let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), pattern);
+
+        debug!(url = %url, "fetching file");
+        let response = client.get(&url).send().await?;
+
+        if response.status() == reqwest::StatusCode::FORBIDDEN {
+            warn!(lang = %lang, "GitHub rate limit exceeded");
+            return Err(Error::RateLimited);
+        }
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            debug!(url = %url, "file not found, trying next pattern");
+            continue;
+        }
+
+        if !response.status().is_success() {
+            return Err(Error::DownloadFailed(format!(
+                "HTTP {}: {}",
+                response.status(),
+                url
+            )));
+        }
+
+        let total_bytes = response.content_length();
+        let mut downloaded_bytes: u64 = 0;
+        let mut content = Vec::new();
+
+        // Send initial progress
+        on_progress(DownloadProgress {
+            phase: DownloadPhase::Downloading,
+            total_bytes,
+            downloaded_bytes,
+            current_file: pattern.clone(),
+            total_files,
+            current_file_index: file_index + 1,
+        });
+
+        // Stream the response body
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            downloaded_bytes += chunk.len() as u64;
+            content.extend_from_slice(&chunk);
+
+            on_progress(DownloadProgress {
+                phase: DownloadPhase::Downloading,
+                total_bytes,
+                downloaded_bytes,
+                current_file: pattern.clone(),
+                total_files,
+                current_file_index: file_index + 1,
+            });
+        }
+
+        let text = String::from_utf8_lossy(&content);
+        debug!(url = %url, bytes = content.len(), "downloaded file");
+        all_content.push_str(&text);
+        if !text.ends_with('\n') {
             all_content.push('\n');
         }
         found_any = true;
