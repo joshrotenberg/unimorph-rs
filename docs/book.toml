@@ -1,0 +1,49 @@
+[book]
+title = "UniMorph-rs"
+description = "A complete Rust toolkit for working with UniMorph morphological data"
+authors = ["Josh Rotenberg"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/joshrotenberg/unimorph-rs"
+edit-url-template = "https://github.com/joshrotenberg/unimorph-rs/edit/main/docs/{path}"
+site-url = "/unimorph-rs/"
+cname = ""
+additional-css = []
+additional-js = []
+no-section-label = false
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.playground]
+editable = false
+copyable = true
+copy-js = true
+line-numbers = true
+
+[output.html.search]
+enable = true
+limit-results = 30
+teaser-word-count = 30
+boost-title = 2
+boost-hierarchy = 1
+boost-paragraph = 1
+expand = true
+heading-split-level = 3
+copy-js = true
+
+# [output.linkcheck]
+# warning-policy = "error"
+
+# [preprocessor.lint]
+# command = "mdbook-lint"
+# level = "all"
+# deny-level = "error"
