@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-01-06
+
+### Bug Fixes
+
+- Add readme field to crate manifests for crates.io display ([#55](https://github.com/joshrotenberg/unimorph-rs/pull/55))
+
+### Documentation
+
+- Streamline README and fix inaccuracies ([#56](https://github.com/joshrotenberg/unimorph-rs/pull/56))
+
+### Features
+
+- Add sample command for random entry sampling ([#60](https://github.com/joshrotenberg/unimorph-rs/pull/60))
+- Add Docker support ([#62](https://github.com/joshrotenberg/unimorph-rs/pull/62))
+
+
+
 ## [0.1.1] - 2026-01-06
 
 ### Miscellaneous Tasks
