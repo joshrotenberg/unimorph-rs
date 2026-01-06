@@ -1,6 +1,8 @@
 # Available Languages
 
-UniMorph provides morphological data for 100+ languages. Use `unimorph list --available` to see the current list.
+[UniMorph](https://unimorph.github.io/) provides morphological data for 100+ languages. Use `unimorph list --available` to see the current list.
+
+For the complete list of languages with download links, see the [official UniMorph languages page](https://unimorph.github.io/).
 
 ## Listing Languages
 
@@ -69,7 +71,7 @@ unimorph stats <lang>
 
 ## Language Repositories
 
-Each language has its own GitHub repository under the UniMorph organization:
+Each language has its own GitHub repository under the [UniMorph organization](https://github.com/unimorph):
 
 ```
 https://github.com/unimorph/<code>
@@ -79,6 +81,8 @@ For example:
 - Hebrew: [github.com/unimorph/heb](https://github.com/unimorph/heb)
 - Italian: [github.com/unimorph/ita](https://github.com/unimorph/ita)
 - Finnish: [github.com/unimorph/fin](https://github.com/unimorph/fin)
+
+You can also browse all languages on the [UniMorph website](https://unimorph.github.io/).
 
 ## Data Quality
 
@@ -130,8 +134,8 @@ unimorph inflect -l hebrew כתב
 
 To contribute to a language or add a new one:
 
-1. Visit the language repository on GitHub
+1. Visit the language repository on [GitHub](https://github.com/unimorph)
 2. Check existing issues
 3. Submit corrections or additions via pull request
 
-Or contact the UniMorph team through their website: [unimorph.github.io](https://unimorph.github.io/)
+See the [UniMorph contribution guidelines](https://unimorph.github.io/) for more information.

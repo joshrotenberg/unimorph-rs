@@ -1,6 +1,8 @@
 # Feature Schema
 
-UniMorph uses a standardized feature schema to annotate morphological forms. Features are semicolon-separated and position-dependent within each language.
+[UniMorph](https://unimorph.github.io/) uses a standardized feature schema to annotate morphological forms. Features are semicolon-separated and position-dependent within each language.
+
+For the complete official specification, see the [UniMorph Schema documentation (PDF)](https://unimorph.github.io/doc/unimorph-schema.pdf).
 
 ## Feature Format
 
@@ -234,5 +236,8 @@ if features.matches("V;*;SG;*") {
 
 ## References
 
-- [UniMorph Schema Documentation](https://unimorph.github.io/doc/unimorph-schema.pdf)
-- [Leipzig Glossing Rules](https://www.eva.mpg.de/lingua/resources/glossing-rules.php)
+- [UniMorph Schema Documentation (PDF)](https://unimorph.github.io/doc/unimorph-schema.pdf) - Official schema specification
+- [UniMorph Website](https://unimorph.github.io/) - Main project site
+- [UniMorph GitHub](https://github.com/unimorph) - Language repositories
+- [Leipzig Glossing Rules](https://www.eva.mpg.de/lingua/resources/glossing-rules.php) - Standard for interlinear glossing
+- [SIGMORPHON](https://sigmorphon.github.io/) - Shared tasks using UniMorph data

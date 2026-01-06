@@ -85,7 +85,7 @@ UniMorph uses a standardized feature schema across all languages, making cross-l
 - Tense (PST, PRS, FUT)
 - And many more...
 
-See [Feature Schema](./schema.md) for the complete schema.
+See the [official UniMorph schema documentation](https://unimorph.github.io/doc/unimorph-schema.pdf) for the complete specification, or our [Feature Schema](./schema.md) page for a quick reference.
 
 ## Contributing to UniMorph
 
@@ -115,6 +115,13 @@ If you use UniMorph in research, please cite:
 
 ## Related Projects
 
-- **SIGMORPHON**: Shared tasks on morphological analysis
-- **Universal Dependencies**: Syntactic annotation
-- **Lexical Markup Framework**: ISO standard for lexical resources
+- **[SIGMORPHON](https://sigmorphon.github.io/)**: Shared tasks on morphological analysis
+- **[Universal Dependencies](https://universaldependencies.org/)**: Syntactic annotation
+- **[Lexical Markup Framework](https://www.lexicalmarkupframework.org/)**: ISO standard for lexical resources
+
+## External Links
+
+- [UniMorph Website](https://unimorph.github.io/)
+- [UniMorph GitHub Organization](https://github.com/unimorph)
+- [UniMorph Schema (PDF)](https://unimorph.github.io/doc/unimorph-schema.pdf)
+- [SIGMORPHON Shared Tasks](https://sigmorphon.github.io/sharedtasks/)
