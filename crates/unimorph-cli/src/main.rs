@@ -14,12 +14,25 @@ use color_eyre::eyre::Result;
 use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
+use color_eyre::eyre::eyre;
 use commands::{
     ExportFormat, cmd_analyze, cmd_config_init, cmd_config_path, cmd_config_show, cmd_delete,
     cmd_download, cmd_export, cmd_features, cmd_inflect, cmd_info, cmd_list, cmd_repair,
     cmd_search, cmd_stats, cmd_update,
 };
 use config::Config;
+
+/// Error message when no language is specified and no default is configured.
+fn no_language_error() -> color_eyre::eyre::Report {
+    eyre!(
+        "No language specified.\n\n\
+        Provide a language code as an argument, or set a default:\n\n\
+        \x20 export UNIMORPH_LANG=heb\n\n\
+        Or in ~/.config/unimorph/config.toml:\n\n\
+        \x20 default_lang = \"heb\"\n\n\
+        Run 'unimorph list --available' to see available languages."
+    )
+}
 
 #[derive(Parser)]
 #[command(name = "unimorph")]
@@ -47,7 +60,8 @@ enum Commands {
     #[command(visible_alias = "dl")]
     Download {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        lang: Option<String>,
 
         /// Force re-download even if cached
         #[arg(short, long)]
@@ -81,11 +95,13 @@ enum Commands {
     /// Look up all forms of a lemma (dictionary form)
     #[command(visible_alias = "i")]
     Inflect {
-        /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
-
         /// Lemma to look up
         lemma: String,
+
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        #[arg(short, long)]
+        lang: Option<String>,
 
         /// Filter by feature pattern (e.g., "V;IND;*;SG")
         #[arg(short, long)]
@@ -99,11 +115,13 @@ enum Commands {
     /// Analyze a surface form (reverse lookup)
     #[command(visible_alias = "a")]
     Analyze {
-        /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
-
         /// Form to analyze
         form: String,
+
+        /// Language code (ISO 639-3, e.g., heb, vec, deu)
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        #[arg(short, long)]
+        lang: Option<String>,
 
         /// Output as JSON
         #[arg(long)]
@@ -114,7 +132,8 @@ enum Commands {
     #[command(visible_alias = "st")]
     Stats {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        lang: Option<String>,
 
         /// Output as JSON
         #[arg(long)]
@@ -125,7 +144,8 @@ enum Commands {
     #[command(visible_alias = "rm")]
     Delete {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        lang: Option<String>,
 
         /// Output as JSON
         #[arg(long)]
@@ -136,7 +156,9 @@ enum Commands {
     #[command(visible_alias = "s")]
     Search {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        #[arg(short, long)]
+        lang: Option<String>,
 
         /// Filter by lemma (supports SQL LIKE wildcards: % and _)
         #[arg(long)]
@@ -180,14 +202,16 @@ enum Commands {
     #[command(visible_alias = "x")]
     Export {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        #[arg(short, long)]
+        lang: Option<String>,
 
         /// Output file path (use - for stdout)
         #[arg(short, long)]
         output: Option<PathBuf>,
 
         /// Output format (auto-detected from extension if not specified)
-        #[arg(short, long)]
+        #[arg(short = 'F', long)]
         format: Option<ExportFormat>,
     },
 
@@ -201,7 +225,8 @@ enum Commands {
     #[command(visible_alias = "in")]
     Info {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        lang: Option<String>,
 
         /// Output as JSON
         #[arg(long)]
@@ -246,7 +271,9 @@ enum Commands {
     #[command(visible_alias = "f")]
     Features {
         /// Language code (ISO 639-3, e.g., heb, vec, deu)
-        lang: String,
+        /// Uses UNIMORPH_LANG env var or config default if not specified
+        #[arg(short, long)]
+        lang: Option<String>,
 
         /// List all unique feature values
         #[arg(long)]
@@ -364,7 +391,9 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Download { lang, force, json } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_download(&lang, force, json, cli.quiet, data_dir.as_deref()).await
         }
         Commands::List {
@@ -374,12 +403,14 @@ async fn main() -> Result<()> {
             json,
         } => cmd_list(cached, available, refresh, json, data_dir.as_deref()).await,
         Commands::Inflect {
-            lang,
             lemma,
+            lang,
             features,
             json,
         } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_inflect(
                 &lang,
                 &lemma,
@@ -388,16 +419,22 @@ async fn main() -> Result<()> {
                 data_dir.as_deref(),
             )
         }
-        Commands::Analyze { lang, form, json } => {
-            let lang = config.resolve_lang(&lang);
+        Commands::Analyze { form, lang, json } => {
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_analyze(&lang, &form, json, data_dir.as_deref())
         }
         Commands::Stats { lang, json } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_stats(&lang, json, data_dir.as_deref())
         }
         Commands::Delete { lang, json } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_delete(&lang, json, data_dir.as_deref())
         }
         Commands::Search {
@@ -412,7 +449,9 @@ async fn main() -> Result<()> {
             count,
             json,
         } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_search(
                 &lang,
                 lemma.as_deref(),
@@ -432,7 +471,9 @@ async fn main() -> Result<()> {
             output,
             format,
         } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_export(&lang, output, format, data_dir.as_deref())
         }
         Commands::Completions { shell } => {
@@ -441,7 +482,9 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Info { lang, json } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_info(&lang, json, data_dir.as_deref()).await
         }
         Commands::Update {
@@ -450,7 +493,16 @@ async fn main() -> Result<()> {
             check,
             json,
         } => {
-            let lang = lang.map(|l| config.resolve_lang(&l));
+            // Update command: lang is optional if --all is used
+            let lang = if all {
+                None
+            } else {
+                Some(
+                    config
+                        .effective_lang(lang.as_deref())
+                        .ok_or_else(no_language_error)?,
+                )
+            };
             cmd_update(lang.as_deref(), all, check, json, data_dir.as_deref()).await
         }
         Commands::Repair {
@@ -467,7 +519,9 @@ async fn main() -> Result<()> {
             limit,
             json,
         } => {
-            let lang = config.resolve_lang(&lang);
+            let lang = config
+                .effective_lang(lang.as_deref())
+                .ok_or_else(no_language_error)?;
             cmd_features(
                 &lang,
                 list,

@@ -53,7 +53,7 @@ mod help {
             .args(["download", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("<LANG>"))
+            .stdout(predicate::str::contains("[LANG]"))
             .stdout(predicate::str::contains("--force"));
     }
 
@@ -63,7 +63,7 @@ mod help {
             .args(["inflect", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("<LANG>"))
+            .stdout(predicate::str::contains("--lang"))
             .stdout(predicate::str::contains("<LEMMA>"))
             .stdout(predicate::str::contains("--features"))
             .stdout(predicate::str::contains("--json"));
@@ -75,7 +75,7 @@ mod help {
             .args(["analyze", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("<LANG>"))
+            .stdout(predicate::str::contains("--lang"))
             .stdout(predicate::str::contains("<FORM>"))
             .stdout(predicate::str::contains("--json"));
     }
@@ -86,7 +86,7 @@ mod help {
             .args(["stats", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("<LANG>"))
+            .stdout(predicate::str::contains("[LANG]"))
             .stdout(predicate::str::contains("--json"));
     }
 
@@ -105,7 +105,7 @@ mod help {
             .args(["delete", "--help"])
             .assert()
             .success()
-            .stdout(predicate::str::contains("<LANG>"));
+            .stdout(predicate::str::contains("[LANG]"));
     }
 }
 
@@ -130,58 +130,67 @@ mod errors {
     }
 
     #[test]
-    fn download_requires_lang() {
+    fn download_without_lang_shows_helpful_error() {
+        // Without a default language set, should show helpful error
         unimorph()
             .arg("download")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("<LANG>"));
-    }
-
-    #[test]
-    fn inflect_requires_lang() {
-        unimorph()
-            .arg("inflect")
-            .assert()
-            .failure()
-            .stderr(predicate::str::contains("<LANG>"));
+            .stderr(predicate::str::contains("No language specified"));
     }
 
     #[test]
     fn inflect_requires_lemma() {
-        unimorph().args(["inflect", "ita"]).assert().failure();
+        unimorph()
+            .arg("inflect")
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("<LEMMA>"));
     }
 
     #[test]
-    fn analyze_requires_lang() {
+    fn inflect_with_lemma_but_no_lang_shows_helpful_error() {
         unimorph()
-            .arg("analyze")
+            .args(["inflect", "parlare"])
             .assert()
             .failure()
-            .stderr(predicate::str::contains("<LANG>"));
+            .stderr(predicate::str::contains("No language specified"));
     }
 
     #[test]
     fn analyze_requires_form() {
-        unimorph().args(["analyze", "ita"]).assert().failure();
+        unimorph()
+            .arg("analyze")
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("<FORM>"));
     }
 
     #[test]
-    fn stats_requires_lang() {
+    fn analyze_with_form_but_no_lang_shows_helpful_error() {
+        unimorph()
+            .args(["analyze", "parlo"])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("No language specified"));
+    }
+
+    #[test]
+    fn stats_without_lang_shows_helpful_error() {
         unimorph()
             .arg("stats")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("<LANG>"));
+            .stderr(predicate::str::contains("No language specified"));
     }
 
     #[test]
-    fn delete_requires_lang() {
+    fn delete_without_lang_shows_helpful_error() {
         unimorph()
             .arg("delete")
             .assert()
             .failure()
-            .stderr(predicate::str::contains("<LANG>"));
+            .stderr(predicate::str::contains("No language specified"));
     }
 }
 
