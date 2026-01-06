@@ -4,7 +4,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use clap::ValueEnum;
-use color_eyre::eyre::{Result, eyre};
+use color_eyre::eyre::Result;
+#[cfg(feature = "parquet")]
+use color_eyre::eyre::eyre;
 use tracing::{info, instrument};
 
 use crate::util::{create_repo, require_language, validate_lang_code};
