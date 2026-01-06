@@ -205,6 +205,135 @@ mod list_command {
     }
 }
 
+mod config_command {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn config_help() {
+        unimorph()
+            .args(["config", "--help"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("show"))
+            .stdout(predicate::str::contains("init"))
+            .stdout(predicate::str::contains("path"));
+    }
+
+    #[test]
+    fn config_show_works() {
+        unimorph()
+            .args(["config", "show"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Configuration"));
+    }
+
+    #[test]
+    fn config_show_json() {
+        unimorph()
+            .args(["config", "show", "--json"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("\"path\""))
+            .stdout(predicate::str::contains("\"config\""));
+    }
+
+    #[test]
+    fn config_path_works() {
+        unimorph()
+            .args(["config", "path"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("config.toml"));
+    }
+
+    #[test]
+    fn config_path_json() {
+        unimorph()
+            .args(["config", "path", "--json"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("\"path\""))
+            .stdout(predicate::str::contains("\"exists\""));
+    }
+
+    /// Get the config directory path based on platform.
+    /// On macOS: ~/Library/Application Support/unimorph
+    /// On Linux: ~/.config/unimorph (or XDG_CONFIG_HOME)
+    fn config_dir_for_temp(temp_dir: &TempDir) -> std::path::PathBuf {
+        #[cfg(target_os = "macos")]
+        {
+            temp_dir
+                .path()
+                .join("Library")
+                .join("Application Support")
+                .join("unimorph")
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            temp_dir.path().join(".config").join("unimorph")
+        }
+    }
+
+    #[test]
+    fn config_init_creates_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_dir = config_dir_for_temp(&temp_dir);
+
+        unimorph()
+            .env("HOME", temp_dir.path())
+            .args(["config", "init"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Success"));
+
+        assert!(config_dir.join("config.toml").exists());
+    }
+
+    #[test]
+    fn config_init_refuses_overwrite() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_dir = config_dir_for_temp(&temp_dir);
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::write(config_dir.join("config.toml"), "# existing").unwrap();
+
+        unimorph()
+            .env("HOME", temp_dir.path())
+            .args(["config", "init"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("already exists"));
+    }
+
+    #[test]
+    fn config_init_force_overwrites() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_dir = config_dir_for_temp(&temp_dir);
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::write(config_dir.join("config.toml"), "# existing").unwrap();
+
+        unimorph()
+            .env("HOME", temp_dir.path())
+            .args(["config", "init", "--force"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Success"));
+
+        let content = std::fs::read_to_string(config_dir.join("config.toml")).unwrap();
+        assert!(content.contains("UniMorph CLI Configuration"));
+    }
+
+    #[test]
+    fn config_alias_works() {
+        unimorph()
+            .args(["cfg", "show"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Configuration"));
+    }
+}
+
 // Tests that require network access or modify state should be marked #[ignore]
 // and run separately with `cargo test -- --ignored`
 mod network_tests {
