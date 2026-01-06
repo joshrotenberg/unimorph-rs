@@ -7,6 +7,10 @@ use color_eyre::eyre::{Context, ContextCompat, Result};
 use serde::Serialize;
 use tracing::{debug, instrument};
 
+use crate::colors::{
+    dim_style, header_style, lang_style, number_style, should_colorize, styled, success_style,
+    warning_style,
+};
 use crate::util::{create_repo, require_language, validate_lang_code};
 
 /// Format a Unix timestamp string as a human-readable date.
@@ -117,8 +121,17 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
         };
         println!("{}", serde_json::to_string_pretty(&output)?);
     } else {
-        println!("Language: {}", lang);
-        println!("Source: {}", source);
+        let color = should_colorize();
+        println!(
+            "{} {}",
+            styled("Language:", header_style(), color),
+            styled(lang, lang_style(), color)
+        );
+        println!(
+            "{} {}",
+            styled("Source:", header_style(), color),
+            styled(&source, dim_style(), color)
+        );
         println!();
 
         if let Some(ref local) = imported_at {
@@ -136,19 +149,39 @@ pub async fn cmd_info(lang: &str, json: bool, data_dir: Option<&Path>) -> Result
 
         println!();
         if update_available {
-            println!("Status: UPDATE AVAILABLE");
+            println!(
+                "{} {}",
+                styled("Status:", header_style(), color),
+                styled("UPDATE AVAILABLE", warning_style(), color)
+            );
             println!();
             println!("Run 'unimorph update {}' to update.", lang);
         } else {
-            println!("Status: Up to date");
+            println!(
+                "{} {}",
+                styled("Status:", header_style(), color),
+                styled("Up to date", success_style(), color)
+            );
         }
 
         println!();
-        println!("Statistics:");
-        println!("  Total entries:   {}", stats.total_entries);
-        println!("  Unique lemmas:   {}", stats.unique_lemmas);
-        println!("  Unique forms:    {}", stats.unique_forms);
-        println!("  Unique features: {}", stats.unique_features);
+        println!("{}", styled("Statistics:", header_style(), color));
+        println!(
+            "  Total entries:   {}",
+            styled(stats.total_entries, number_style(), color)
+        );
+        println!(
+            "  Unique lemmas:   {}",
+            styled(stats.unique_lemmas, number_style(), color)
+        );
+        println!(
+            "  Unique forms:    {}",
+            styled(stats.unique_forms, number_style(), color)
+        );
+        println!(
+            "  Unique features: {}",
+            styled(stats.unique_features, number_style(), color)
+        );
     }
 
     Ok(())
