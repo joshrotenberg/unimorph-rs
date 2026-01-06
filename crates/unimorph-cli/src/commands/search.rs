@@ -18,6 +18,7 @@ pub fn cmd_search(
     lemma: Option<&str>,
     form: Option<&str>,
     features: Option<&str>,
+    contains: Option<Vec<String>>,
     pos: Option<&str>,
     limit: usize,
     offset: Option<usize>,
@@ -40,6 +41,10 @@ pub fn cmd_search(
     }
     if let Some(feat) = features {
         query = query.features_match(feat);
+    }
+    if let Some(ref c) = contains {
+        let refs: Vec<&str> = c.iter().map(|s| s.as_str()).collect();
+        query = query.features_contain(&refs);
     }
     if let Some(p) = pos {
         query = query.pos(p);

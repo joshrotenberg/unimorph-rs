@@ -226,15 +226,22 @@ impl<'a> QueryBuilder<'a> {
             params_vec.push(Box::new(sql_pattern));
         }
 
-        // Add LIMIT and OFFSET (OFFSET requires LIMIT in SQLite)
-        if let Some(limit) = self.limit {
-            sql.push_str(&format!(" LIMIT {}", limit));
-            if let Some(offset) = self.offset {
-                sql.push_str(&format!(" OFFSET {}", offset));
+        // Check if we have post-filters that need to run after SQL
+        let has_post_filters = !self.features_contain.is_empty()
+            || self.pos.is_some()
+            || self.features_pattern.is_some();
+
+        // Only apply SQL LIMIT/OFFSET if no post-filters (otherwise we filter after fetch)
+        if !has_post_filters {
+            if let Some(limit) = self.limit {
+                sql.push_str(&format!(" LIMIT {}", limit));
+                if let Some(offset) = self.offset {
+                    sql.push_str(&format!(" OFFSET {}", offset));
+                }
+            } else if self.offset.is_some() {
+                // OFFSET without LIMIT: use a very large limit
+                sql.push_str(&format!(" LIMIT -1 OFFSET {}", self.offset.unwrap()));
             }
-        } else if self.offset.is_some() {
-            // OFFSET without LIMIT: use a very large limit
-            sql.push_str(&format!(" LIMIT -1 OFFSET {}", self.offset.unwrap()));
         }
 
         // Execute query
@@ -242,7 +249,7 @@ impl<'a> QueryBuilder<'a> {
         let params_refs: Vec<&dyn rusqlite::ToSql> =
             params_vec.iter().map(|b| b.as_ref()).collect();
 
-        let entries: Vec<Entry> = stmt
+        let iter = stmt
             .query_map(params_refs.as_slice(), |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -279,8 +286,19 @@ impl<'a> QueryBuilder<'a> {
                     return false;
                 }
                 true
-            })
-            .collect();
+            });
+
+        // Apply limit/offset after post-filters when post-filters are present
+        let entries: Vec<Entry> = if has_post_filters {
+            match (self.offset, self.limit) {
+                (Some(offset), Some(limit)) => iter.skip(offset).take(limit).collect(),
+                (Some(offset), None) => iter.skip(offset).collect(),
+                (None, Some(limit)) => iter.take(limit).collect(),
+                (None, None) => iter.collect(),
+            }
+        } else {
+            iter.collect()
+        };
 
         debug!(count = entries.len(), "query returned entries");
         Ok(entries)
