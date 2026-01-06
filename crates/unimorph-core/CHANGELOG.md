@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2026-01-06
+
+### Documentation
+
+- Update references from unimorph-cli to unimorph
+
+
+
 ## [0.1.3] - 2026-01-06
 
 ### Bug Fixes
