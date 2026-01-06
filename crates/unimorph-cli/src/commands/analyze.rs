@@ -12,7 +12,13 @@ use crate::colors::{
 use crate::util::{create_repo, require_language, validate_lang_code};
 
 #[instrument(skip_all, fields(lang, form))]
-pub fn cmd_analyze(lang: &str, form: &str, json: bool, data_dir: Option<&Path>) -> Result<()> {
+pub fn cmd_analyze(
+    lang: &str,
+    form: &str,
+    json: bool,
+    tsv: bool,
+    data_dir: Option<&Path>,
+) -> Result<()> {
     validate_lang_code(lang)?;
 
     let repo = create_repo(data_dir)?;
@@ -34,6 +40,11 @@ pub fn cmd_analyze(lang: &str, form: &str, json: bool, data_dir: Option<&Path>) 
 
     if json {
         println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else if tsv {
+        // TSV output: tab-separated, no headers, no summary - ideal for piping
+        for entry in &entries {
+            println!("{}\t{}\t{}", entry.form, entry.lemma, entry.features);
+        }
     } else {
         let color = should_colorize();
         println!(

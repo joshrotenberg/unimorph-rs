@@ -110,6 +110,10 @@ enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Output as TSV (tab-separated, no headers) for piping
+        #[arg(long)]
+        tsv: bool,
     },
 
     /// Analyze a surface form (reverse lookup)
@@ -126,6 +130,10 @@ enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Output as TSV (tab-separated, no headers) for piping
+        #[arg(long)]
+        tsv: bool,
     },
 
     /// Show dataset statistics
@@ -196,6 +204,10 @@ enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Output as TSV (tab-separated, no headers) for piping
+        #[arg(long)]
+        tsv: bool,
     },
 
     /// Export a language dataset to file
@@ -407,6 +419,7 @@ async fn main() -> Result<()> {
             lang,
             features,
             json,
+            tsv,
         } => {
             let lang = config
                 .effective_lang(lang.as_deref())
@@ -416,14 +429,20 @@ async fn main() -> Result<()> {
                 &lemma,
                 features.as_deref(),
                 json,
+                tsv,
                 data_dir.as_deref(),
             )
         }
-        Commands::Analyze { form, lang, json } => {
+        Commands::Analyze {
+            form,
+            lang,
+            json,
+            tsv,
+        } => {
             let lang = config
                 .effective_lang(lang.as_deref())
                 .ok_or_else(no_language_error)?;
-            cmd_analyze(&lang, &form, json, data_dir.as_deref())
+            cmd_analyze(&lang, &form, json, tsv, data_dir.as_deref())
         }
         Commands::Stats { lang, json } => {
             let lang = config
@@ -448,6 +467,7 @@ async fn main() -> Result<()> {
             offset,
             count,
             json,
+            tsv,
         } => {
             let lang = config
                 .effective_lang(lang.as_deref())
@@ -463,6 +483,7 @@ async fn main() -> Result<()> {
                 offset,
                 count,
                 json,
+                tsv,
                 data_dir.as_deref(),
             )
         }

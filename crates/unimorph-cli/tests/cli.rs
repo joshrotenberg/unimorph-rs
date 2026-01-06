@@ -199,12 +199,9 @@ mod list_command {
 
     #[test]
     fn list_shows_cached_by_default() {
-        // Default behavior now shows cached languages or helpful info
-        unimorph()
-            .arg("list")
-            .assert()
-            .success()
-            .stdout(predicate::str::contains("list --available"));
+        // Default behavior shows cached languages (pipe-friendly when not TTY)
+        // or nothing if no languages are cached
+        unimorph().arg("list").assert().success();
     }
 
     #[test]

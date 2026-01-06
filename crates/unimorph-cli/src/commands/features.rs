@@ -1,6 +1,7 @@
 //! Features command implementation.
 
 use std::collections::HashMap;
+use std::io::IsTerminal;
 use std::path::Path;
 
 use color_eyre::eyre::Result;
@@ -44,7 +45,7 @@ pub fn cmd_features(
 
         if json {
             println!("{}", serde_json::to_string_pretty(&all_features)?);
-        } else {
+        } else if std::io::stdout().is_terminal() {
             println!("Unique features in {}:", lang);
             println!();
             for feat in &all_features {
@@ -52,6 +53,11 @@ pub fn cmd_features(
             }
             println!();
             println!("{} unique feature values.", all_features.len());
+        } else {
+            // Pipe-friendly: one feature per line
+            for feat in &all_features {
+                println!("{}", feat);
+            }
         }
         return Ok(());
     }
@@ -71,7 +77,7 @@ pub fn cmd_features(
         if json {
             let map: HashMap<_, _> = sorted.into_iter().collect();
             println!("{}", serde_json::to_string_pretty(&map)?);
-        } else {
+        } else if std::io::stdout().is_terminal() {
             println!("Feature statistics for {}:", lang);
             println!();
             println!("{:<20} COUNT", "FEATURE");
@@ -81,6 +87,11 @@ pub fn cmd_features(
             }
             if sorted.len() > limit {
                 println!("... and {} more", sorted.len() - limit);
+            }
+        } else {
+            // Pipe-friendly: TSV output (feature\tcount)
+            for (feat, count) in sorted.iter().take(limit) {
+                println!("{}\t{}", feat, count);
             }
         }
         return Ok(());
@@ -102,7 +113,7 @@ pub fn cmd_features(
 
         if json {
             println!("{}", serde_json::to_string_pretty(&matching)?);
-        } else {
+        } else if std::io::stdout().is_terminal() {
             if matching.is_empty() {
                 println!("No entries with feature '{}' found.", term);
                 return Ok(());
@@ -119,6 +130,11 @@ pub fn cmd_features(
                 println!("Showing {} of {} results.", limit, total_count);
             } else {
                 println!("{} result(s).", matching.len());
+            }
+        } else {
+            // Pipe-friendly: TSV output (lemma\tform\tfeatures)
+            for entry in &matching {
+                println!("{}\t{}\t{}", entry.lemma, entry.form, entry.features);
             }
         }
         return Ok(());
@@ -139,7 +155,7 @@ pub fn cmd_features(
         if json {
             let map: HashMap<_, _> = sorted.into_iter().collect();
             println!("{}", serde_json::to_string_pretty(&map)?);
-        } else {
+        } else if std::io::stdout().is_terminal() {
             println!("Feature values at position {} in {}:", pos, lang);
             println!();
             println!("{:<20} COUNT", "VALUE");
@@ -149,6 +165,11 @@ pub fn cmd_features(
             }
             if sorted.len() > limit {
                 println!("... and {} more", sorted.len() - limit);
+            }
+        } else {
+            // Pipe-friendly: TSV output (value\tcount)
+            for (val, count) in sorted.iter().take(limit) {
+                println!("{}\t{}", val, count);
             }
         }
         return Ok(());
@@ -183,7 +204,7 @@ pub fn cmd_features(
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&summary)?);
-    } else {
+    } else if std::io::stdout().is_terminal() {
         println!("Feature structure for {}:", lang);
         println!();
         for (i, counts) in position_counts.iter().enumerate() {
@@ -201,6 +222,11 @@ pub fn cmd_features(
         println!(
             "Use --list for all unique values, --stats for counts, --search <FEATURE> to find entries."
         );
+    } else {
+        // Pipe-friendly: TSV output (position\tunique_count)
+        for (i, counts) in position_counts.iter().enumerate() {
+            println!("{}\t{}", i, counts.len());
+        }
     }
 
     Ok(())

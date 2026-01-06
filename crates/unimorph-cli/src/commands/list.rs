@@ -1,6 +1,7 @@
 //! List command implementation.
 
 use std::collections::HashSet;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use color_eyre::eyre::{Context, Result};
@@ -146,7 +147,7 @@ pub async fn cmd_list(
         if cached_langs.is_empty() {
             if json {
                 println!("[]");
-            } else {
+            } else if std::io::stdout().is_terminal() {
                 println!("No languages cached.");
                 println!();
                 println!("To download a language:");
@@ -156,10 +157,11 @@ pub async fn cmd_list(
                 println!("  unimorph download heb   # Hebrew");
                 println!("  unimorph download vec   # Venetian");
             }
+            // When piped with no languages, output nothing
         } else if json {
             let langs: Vec<_> = cached_langs.iter().collect();
             println!("{}", serde_json::to_string_pretty(&langs)?);
-        } else {
+        } else if std::io::stdout().is_terminal() {
             println!("Cached languages:");
             let mut langs: Vec<_> = cached_langs.iter().collect();
             langs.sort();
@@ -170,6 +172,13 @@ pub async fn cmd_list(
                 } else {
                     println!("  {}", lang);
                 }
+            }
+        } else {
+            // Pipe-friendly: just output language codes, one per line
+            let mut langs: Vec<_> = cached_langs.iter().collect();
+            langs.sort();
+            for lang in langs {
+                println!("{}", lang);
             }
         }
         return Ok(());
@@ -205,7 +214,7 @@ pub async fn cmd_list(
                 })
                 .collect();
             println!("{}", serde_json::to_string_pretty(&langs)?);
-        } else {
+        } else if std::io::stdout().is_terminal() {
             println!(
                 "Available languages ({} total, {} cached):",
                 available_langs.len(),
@@ -222,6 +231,11 @@ pub async fn cmd_list(
             println!();
             println!("Use 'unimorph download <code>' to download a language.");
             println!("Use 'unimorph list --refresh' to update this list.");
+        } else {
+            // Pipe-friendly: just output language codes, one per line
+            for lang in &available_langs {
+                println!("{}", lang);
+            }
         }
         return Ok(());
     }
@@ -231,7 +245,7 @@ pub async fn cmd_list(
         // No languages cached - show helpful info
         if json {
             println!("[]");
-        } else {
+        } else if std::io::stdout().is_terminal() {
             println!("No languages cached yet.");
             println!();
             println!("To download a language:");
@@ -246,10 +260,11 @@ pub async fn cmd_list(
             println!();
             println!("More info: https://github.com/unimorph");
         }
+        // When piped with no languages, output nothing
     } else if json {
         let langs: Vec<_> = cached_langs.iter().collect();
         println!("{}", serde_json::to_string_pretty(&langs)?);
-    } else {
+    } else if std::io::stdout().is_terminal() {
         println!("Cached languages:");
         let mut langs: Vec<_> = cached_langs.iter().collect();
         langs.sort();
@@ -263,6 +278,13 @@ pub async fn cmd_list(
         }
         println!();
         println!("Use 'unimorph list --available' to see all available languages.");
+    } else {
+        // Pipe-friendly: just output language codes, one per line
+        let mut langs: Vec<_> = cached_langs.iter().collect();
+        langs.sort();
+        for lang in langs {
+            println!("{}", lang);
+        }
     }
 
     Ok(())

@@ -24,6 +24,7 @@ pub fn cmd_search(
     offset: Option<usize>,
     count: bool,
     json: bool,
+    tsv: bool,
     data_dir: Option<&Path>,
 ) -> Result<()> {
     validate_lang_code(lang)?;
@@ -75,6 +76,11 @@ pub fn cmd_search(
 
     if json {
         println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else if tsv {
+        // TSV output: tab-separated, no headers, no summary - ideal for piping
+        for entry in &entries {
+            println!("{}\t{}\t{}", entry.lemma, entry.form, entry.features);
+        }
     } else {
         let color = should_colorize();
         println!(
