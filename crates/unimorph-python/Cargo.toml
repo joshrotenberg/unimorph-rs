@@ -1,0 +1,22 @@
+[package]
+name = "unimorph-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Python bindings for UniMorph morphological data toolkit"
+publish = false
+
+[lib]
+name = "unimorph"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+unimorph-core = { path = "../unimorph-core" }
+pyo3.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+
+[build-dependencies]
+pyo3-build-config.workspace = true
