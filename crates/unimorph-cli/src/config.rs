@@ -118,6 +118,43 @@ impl Config {
         }
         lang_or_alias.to_string()
     }
+
+    /// Get the default language from environment variable or config file.
+    ///
+    /// Priority order:
+    /// 1. UNIMORPH_LANG environment variable
+    /// 2. Config file default_lang
+    ///
+    /// Returns None if no default is set.
+    pub fn default_lang(&self) -> Option<String> {
+        // Check environment variable first
+        if let Ok(lang) = std::env::var("UNIMORPH_LANG")
+            && !lang.is_empty()
+        {
+            debug!(lang = %lang, "Using default language from UNIMORPH_LANG");
+            return Some(self.resolve_lang(&lang));
+        }
+
+        // Fall back to config file
+        if let Some(lang) = &self.default_lang {
+            debug!(lang = %lang, "Using default language from config file");
+            return Some(self.resolve_lang(lang));
+        }
+
+        None
+    }
+
+    /// Resolve the effective language: use provided value or fall back to default.
+    ///
+    /// If `lang` is Some, resolves any aliases and returns it.
+    /// If `lang` is None, returns the default language (env > config).
+    /// Returns None if no language is provided and no default is set.
+    pub fn effective_lang(&self, lang: Option<&str>) -> Option<String> {
+        match lang {
+            Some(l) => Some(self.resolve_lang(l)),
+            None => self.default_lang(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -188,5 +225,31 @@ mod tests {
     fn test_load_nonexistent_file() {
         let config = Config::load_from(Path::new("/nonexistent/path/config.toml"));
         assert!(config.default_lang.is_none());
+    }
+
+    #[test]
+    fn test_effective_lang_with_explicit() {
+        let toml = r#"
+            default_lang = "ita"
+        "#;
+        let config: Config = toml::from_str(toml).unwrap();
+
+        // Explicit lang should always be used regardless of default
+        assert_eq!(config.effective_lang(Some("heb")), Some("heb".to_string()));
+    }
+
+    #[test]
+    fn test_effective_lang_resolves_alias() {
+        let toml = r#"
+            [languages.heb]
+            alias = "hebrew"
+        "#;
+        let config: Config = toml::from_str(toml).unwrap();
+
+        // Alias should be resolved
+        assert_eq!(
+            config.effective_lang(Some("hebrew")),
+            Some("heb".to_string())
+        );
     }
 }
