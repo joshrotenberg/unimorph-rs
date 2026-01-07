@@ -1,5 +1,6 @@
 # Multi-stage build for unimorph CLI
-FROM rust:1.85-slim-bookworm AS builder
+# Requires Rust 1.85+ for 2024 edition support
+FROM rust:latest AS builder
 
 WORKDIR /app
 
