@@ -1,4 +1,4 @@
-//! UniMorph CLI - Command-line interface for UniMorph morphological data.
+//! UniMorph CLI - Command-line tool for working with UniMorph morphological data.
 
 mod colors;
 mod commands;
