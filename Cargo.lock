@@ -4857,7 +4857,7 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 
 [[package]]
 name = "unimorph"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "assert_cmd",
  "chrono",
@@ -4881,7 +4881,7 @@ dependencies = [
 
 [[package]]
 name = "unimorph-bench"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "criterion",
  "dirs",
@@ -4898,7 +4898,7 @@ dependencies = [
 
 [[package]]
 name = "unimorph-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "arrow 54.3.1",
  "dirs",
@@ -4917,7 +4917,7 @@ dependencies = [
 
 [[package]]
 name = "unimorph-python"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
