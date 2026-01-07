@@ -17,34 +17,6 @@ If you have Rust installed:
 cargo install unimorph
 ```
 
-### Docker
-
-Pull the image from GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/joshrotenberg/unimorph-rs:latest
-```
-
-Run with a persistent data cache:
-
-```bash
-# Download a dataset
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download spa
-
-# Query the data
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect spa hablar
-
-# Export data
-docker run -v ~/.cache/unimorph:/data -v $(pwd):/output ghcr.io/joshrotenberg/unimorph-rs \
-    export spa -f jsonl -o /output/spanish.jsonl
-```
-
-You can also create a shell alias for convenience:
-
-```bash
-alias unimorph='docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs'
-```
-
 ### From Source
 
 ```bash
