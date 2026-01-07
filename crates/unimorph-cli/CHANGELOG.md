@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8] - 2026-01-07
+
+### Bug Fixes
+
+- Update CLI module doc comment ([#80](https://github.com/joshrotenberg/unimorph-rs/pull/80))
+
+
+
 ## [0.1.7] - 2026-01-07
 
 ### Bug Fixes
