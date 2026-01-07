@@ -36,7 +36,8 @@ fn no_language_error() -> color_eyre::eyre::Report {
 
 const LONG_VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
-    "\nhttps://github.com/joshrotenberg/unimorph-rs"
+    "\n",
+    "https://github.com/joshrotenberg/unimorph-rs"
 );
 
 #[derive(Parser)]
