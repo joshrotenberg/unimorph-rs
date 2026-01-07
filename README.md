@@ -32,16 +32,6 @@ brew install unimorph
 cargo install unimorph
 ```
 
-### Docker
-
-```bash
-docker pull ghcr.io/joshrotenberg/unimorph-rs:latest
-
-# Run with persistent data cache
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs download spa
-docker run -v ~/.cache/unimorph:/data ghcr.io/joshrotenberg/unimorph-rs inflect spa hablar
-```
-
 ### From source
 
 ```bash
