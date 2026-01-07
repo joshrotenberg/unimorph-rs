@@ -42,7 +42,7 @@ on:
   pull_request:
   push:
     tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*'
+      - "**[0-9]+.[0-9]+.[0-9]+*"
 
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
@@ -128,7 +128,7 @@ jobs:
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
       - name: "Set PyO3 compatibility mode"
-        run: "echo \"PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1\" >> $GITHUB_ENV"
+        run: 'echo "PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1" >> $GITHUB_ENV'
         shell: "bash"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
@@ -297,7 +297,7 @@ jobs:
         with:
           persist-credentials: true
           repository: "joshrotenberg/homebrew-brew"
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.COMMITTER_TOKEN }}
       # So we have access to the formula
       - name: Fetch homebrew formulae
         uses: actions/download-artifact@v4
