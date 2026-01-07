@@ -1,42 +1,32 @@
-# Build stage
-FROM rust:latest AS builder
+# Multi-stage build for unimorph CLI
+FROM rust:1.85-slim-bookworm AS builder
 
-WORKDIR /build
+WORKDIR /app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace files
+# Copy manifests
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
 # Build release binary
-RUN cargo build --release -p unimorph
+RUN cargo build --release --package unimorph
 
 # Runtime stage
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -u 1000 unimorph
-
-# Copy binary from builder
-COPY --from=builder /build/target/release/unimorph /usr/local/bin/unimorph
+COPY --from=builder /app/target/release/unimorph /usr/local/bin/unimorph
 
 # Create data directory
-RUN mkdir -p /data && chown unimorph:unimorph /data
-
-USER unimorph
-WORKDIR /home/unimorph
-
-# Default data directory
+RUN mkdir -p /data
 ENV UNIMORPH_DATA=/data
 
 ENTRYPOINT ["unimorph"]
