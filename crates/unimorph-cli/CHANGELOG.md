@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6] - 2026-01-07
+
+### Bug Fixes
+
+- Add repository URL to --version output ([#72](https://github.com/joshrotenberg/unimorph-rs/pull/72))
+
+
+
 ## [0.1.5] - 2026-01-07
 
 ### Miscellaneous Tasks
