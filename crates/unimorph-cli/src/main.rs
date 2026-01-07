@@ -34,9 +34,14 @@ fn no_language_error() -> color_eyre::eyre::Report {
     )
 }
 
+const LONG_VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "\nhttps://github.com/joshrotenberg/unimorph-rs"
+);
+
 #[derive(Parser)]
 #[command(name = "unimorph")]
-#[command(author, version, about = "Work with UniMorph morphological data", long_about = None)]
+#[command(author, version, long_version = LONG_VERSION, about = "Work with UniMorph morphological data", long_about = None)]
 struct Cli {
     /// Enable verbose output (-v for debug, -vv for trace)
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
