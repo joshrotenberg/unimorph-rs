@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.7] - 2026-01-07
+
+### Bug Fixes
+
+- Minor formatting in version string ([#77](https://github.com/joshrotenberg/unimorph-rs/pull/77))
+
+
+
 ## [0.1.6] - 2026-01-07
 
 ### Bug Fixes
