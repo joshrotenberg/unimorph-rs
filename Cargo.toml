@@ -53,3 +53,8 @@ arrow = { version = "54", default-features = false }
 # Python bindings
 pyo3 = { version = "0.24", features = ["extension-module"] }
 pyo3-build-config = "0.24"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

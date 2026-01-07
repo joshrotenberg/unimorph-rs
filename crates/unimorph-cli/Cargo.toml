@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage = "https://joshrotenberg.github.io/unimorph-rs/"
 readme = "../../README.md"
 description = "Command-line interface for UniMorph morphological data"
 keywords = ["linguistics", "morphology", "nlp", "unimorph", "cli"]
