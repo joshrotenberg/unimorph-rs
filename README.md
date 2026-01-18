@@ -8,7 +8,7 @@ A Rust toolkit for working with [UniMorph](https://unimorph.github.io/) morpholo
 
 ## What is UniMorph?
 
-UniMorph provides morphological paradigm data for 169+ languages in a unified annotation format. Each entry is a triple of lemma, inflected form, and morphological features:
+UniMorph provides morphological paradigm data for 180+ languages in a unified annotation format. Each entry is a triple of lemma, inflected form, and morphological features:
 
 ```
 lemma       form        features
@@ -49,6 +49,14 @@ git clone https://github.com/joshrotenberg/unimorph-rs
 cd unimorph-rs
 cargo install --path crates/unimorph-cli  # directory still named unimorph-cli
 ```
+
+## Features
+
+- **Automatic downloads** from UniMorph GitHub repositories
+- **Transparent decompression** of `.xz`, `.gz`, and `.zip` files (some large datasets are compressed)
+- **SQLite storage** for fast local queries
+- **Multiple export formats**: TSV, JSON Lines, Parquet
+- **Python bindings** via PyO3
 
 ## Quick Start
 
