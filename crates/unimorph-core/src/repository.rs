@@ -62,6 +62,15 @@ pub struct DownloadProgress {
 }
 
 const UNIMORPH_RAW_URL: &str = "https://raw.githubusercontent.com/unimorph";
+const UNIMORPH_LFS_URL: &str = "https://media.githubusercontent.com/media/unimorph";
+
+/// Git LFS pointer file prefix.
+const GIT_LFS_PREFIX: &[u8] = b"version https://git-lfs.github.com/spec/v1";
+
+/// Check if bytes represent a Git LFS pointer file.
+fn is_lfs_pointer(bytes: &[u8]) -> bool {
+    bytes.starts_with(GIT_LFS_PREFIX)
+}
 
 /// Decompress content based on file extension.
 ///
@@ -391,6 +400,7 @@ async fn download_language(lang: &LangCode) -> Result<String> {
 ///
 /// Returns the concatenated, decompressed content if all files are found.
 /// Returns an error if any file is not found or fails to download.
+/// Automatically handles Git LFS pointer files by fetching from the media endpoint.
 async fn try_download_files(
     client: &reqwest::Client,
     lang: &LangCode,
@@ -423,8 +433,26 @@ async fn try_download_files(
         }
 
         // Download as bytes for decompression
-        let bytes = response.bytes().await?;
+        let mut bytes = response.bytes().await?;
         debug!(url = %url, bytes = bytes.len(), "downloaded file");
+
+        // Check if this is a Git LFS pointer and fetch actual content if so
+        if is_lfs_pointer(&bytes) {
+            debug!(url = %url, "detected Git LFS pointer, fetching from media endpoint");
+            let lfs_url = format!("{}/{}/master/{}", UNIMORPH_LFS_URL, lang.as_str(), filename);
+            let lfs_response = client.get(&lfs_url).send().await?;
+
+            if !lfs_response.status().is_success() {
+                return Err(Error::DownloadFailed(format!(
+                    "LFS fetch failed HTTP {}: {}",
+                    lfs_response.status(),
+                    lfs_url
+                )));
+            }
+
+            bytes = lfs_response.bytes().await?;
+            debug!(url = %lfs_url, bytes = bytes.len(), "downloaded LFS file");
+        }
 
         // Decompress based on file extension
         let content = decompress_content(filename, &bytes)?;
@@ -473,6 +501,7 @@ where
 ///
 /// Returns the concatenated, decompressed content if all files are found.
 /// Returns an error if any file is not found or fails to download.
+/// Automatically handles Git LFS pointer files by fetching from the media endpoint.
 async fn try_download_files_with_progress<F>(
     client: &reqwest::Client,
     lang: &LangCode,
@@ -541,6 +570,54 @@ where
         }
 
         debug!(url = %url, bytes = bytes.len(), "downloaded file");
+
+        // Check if this is a Git LFS pointer and fetch actual content if so
+        if is_lfs_pointer(&bytes) {
+            debug!(url = %url, "detected Git LFS pointer, fetching from media endpoint");
+            let lfs_url = format!("{}/{}/master/{}", UNIMORPH_LFS_URL, lang.as_str(), filename);
+            let lfs_response = client.get(&lfs_url).send().await?;
+
+            if !lfs_response.status().is_success() {
+                return Err(Error::DownloadFailed(format!(
+                    "LFS fetch failed HTTP {}: {}",
+                    lfs_response.status(),
+                    lfs_url
+                )));
+            }
+
+            // Reset progress for LFS download
+            let lfs_total_bytes = lfs_response.content_length();
+            downloaded_bytes = 0;
+            bytes.clear();
+
+            on_progress(DownloadProgress {
+                phase: DownloadPhase::Downloading,
+                total_bytes: lfs_total_bytes,
+                downloaded_bytes,
+                current_file: format!("{} (LFS)", filename),
+                total_files,
+                current_file_index: file_index + 1,
+            });
+
+            // Stream the LFS response body
+            let mut lfs_stream = lfs_response.bytes_stream();
+            while let Some(chunk) = lfs_stream.next().await {
+                let chunk = chunk?;
+                downloaded_bytes += chunk.len() as u64;
+                bytes.extend_from_slice(&chunk);
+
+                on_progress(DownloadProgress {
+                    phase: DownloadPhase::Downloading,
+                    total_bytes: lfs_total_bytes,
+                    downloaded_bytes,
+                    current_file: format!("{} (LFS)", filename),
+                    total_files,
+                    current_file_index: file_index + 1,
+                });
+            }
+
+            debug!(url = %lfs_url, bytes = bytes.len(), "downloaded LFS file");
+        }
 
         // Decompress based on file extension
         let content = decompress_content(filename, &bytes)?;
@@ -642,6 +719,19 @@ mod tests {
     }
 
     #[test]
+    fn detect_lfs_pointer() {
+        let lfs_content =
+            b"version https://git-lfs.github.com/spec/v1\noid sha256:abc123\nsize 12345\n";
+        assert!(is_lfs_pointer(lfs_content));
+
+        let normal_content = b"lemma\tform\tfeatures\n";
+        assert!(!is_lfs_pointer(normal_content));
+
+        let xz_magic = b"\xfd7zXZ\x00";
+        assert!(!is_lfs_pointer(xz_magic));
+    }
+
+    #[test]
     fn decompress_gzip() {
         use flate2::Compression;
         use flate2::write::GzEncoder;
@@ -724,15 +814,17 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires network access"]
-    async fn download_czech_small() {
-        // Czech is a relatively small dataset, good for quick tests
+    async fn download_czech_lfs() {
+        // Czech uses Git LFS for ces.xz (127 MB) - tests LFS pointer detection
         let temp_dir = TempDir::new().unwrap();
         let mut repo = Repository::with_cache_dir(temp_dir.path()).unwrap();
 
         let downloaded = repo.ensure("ces").await.unwrap();
         assert!(downloaded);
 
+        // Czech is a large dataset from MorfFlex-CZ
         let stats = repo.store().stats("ces").unwrap().unwrap();
         assert!(stats.total_entries > 0);
+        assert!(stats.total_entries > 1_000_000); // Should have millions of entries
     }
 }
