@@ -29,6 +29,10 @@ pub enum Error {
     #[error("GitHub API rate limit exceeded, try again later")]
     RateLimited,
 
+    /// Decompression failed.
+    #[error("decompression failed: {0}")]
+    DecompressionFailed(String),
+
     /// Database error.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
