@@ -90,6 +90,7 @@ unimorph download  # Downloads Hebrew
 - Use `unimorph list --available` to see all available languages
 - Downloads are atomic: partial downloads won't corrupt your data
 - The first download creates the database at `~/.cache/unimorph/datasets.db`
+- **Compressed files are handled automatically**: Some large datasets (e.g., Polish, Czech, Ukrainian) are distributed as `.xz` compressed files. The CLI transparently downloads and decompresses these.
 
 ## See Also
 

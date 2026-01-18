@@ -1,6 +1,6 @@
 # Introduction
 
-**unimorph-rs** is a complete Rust toolkit for working with [UniMorph](https://unimorph.github.io/) morphological data. It provides both a command-line interface and a Rust library for downloading, querying, and analyzing morphological inflection data across 100+ languages.
+**unimorph-rs** is a complete Rust toolkit for working with [UniMorph](https://unimorph.github.io/) morphological data. It provides both a command-line interface and a Rust library for downloading, querying, and analyzing morphological inflection data across 180+ languages.
 
 ## What is UniMorph?
 
@@ -18,7 +18,8 @@ For example, in Spanish:
 ## Features
 
 - **Fast lookups**: SQLite-backed storage with indexed queries
-- **100+ languages**: Access to all UniMorph language datasets
+- **180+ languages**: Access to all UniMorph language datasets
+- **Transparent decompression**: Handles `.xz`, `.gz`, and `.zip` compressed datasets automatically
 - **Flexible querying**: Search by lemma, form, features, or part of speech
 - **Multiple output formats**: Table, JSON, TSV for scripting
 - **Pipe-friendly**: Output designed for Unix pipelines

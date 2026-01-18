@@ -31,6 +31,16 @@ repo.download("heb").await?;
 repo.download_with_options("heb", true).await?;
 ```
 
+### Compressed Files
+
+Some large datasets (Polish, Czech, Ukrainian, etc.) are distributed as compressed `.xz` files due to GitHub file size limits. The repository automatically:
+
+1. Tries compressed versions first (`.xz`, `.gz`)
+2. Falls back to uncompressed if not found
+3. Decompresses transparently before importing
+
+No special handling is needed - just call `download()` as usual.
+
 ## Accessing the Store
 
 Get the underlying store for queries:
