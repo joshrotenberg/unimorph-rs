@@ -243,21 +243,29 @@ impl Entry {
 
     /// Parse a TSV line into an entry.
     ///
-    /// UniMorph format is tab-separated with 3 columns: lemma, form, features.
+    /// UniMorph format is tab-separated with at least 3 columns: lemma, form, features.
+    /// Some languages have a 4th column with additional features (e.g., gender/animacy).
+    /// When present, extra columns are merged into the features.
     /// No header row.
     pub fn parse_line(line: &str, line_num: usize) -> Result<Self, Error> {
         let parts: Vec<&str> = line.split('\t').collect();
 
-        if parts.len() != 3 {
+        if parts.len() < 3 {
             return Err(Error::MalformedEntry {
                 line: line_num,
-                reason: format!("expected 3 columns, found {}", parts.len()),
+                reason: format!("expected at least 3 columns, found {}", parts.len()),
             });
         }
 
         let lemma = parts[0];
         let form = parts[1];
-        let features_str = parts[2];
+        // Merge columns 3+ into features (some languages have extra feature columns)
+        let features_str = if parts.len() > 3 {
+            parts[2..].join(";")
+        } else {
+            parts[2].to_string()
+        };
+        let features_str = features_str.as_str();
 
         if lemma.is_empty() {
             return Err(Error::MalformedEntry {
@@ -517,7 +525,15 @@ mod tests {
         fn wrong_column_count() {
             assert!(Entry::parse_line("only_one_column", 1).is_err());
             assert!(Entry::parse_line("two\tcolumns", 1).is_err());
-            assert!(Entry::parse_line("a\tb\tc\td", 1).is_err());
+        }
+
+        #[test]
+        fn four_columns_merged() {
+            // Some languages (e.g., Polish) have a 4th column with extra features
+            let entry = Entry::parse_line("lemma\tform\tN;ACC;SG\tMASC;INAN", 1).unwrap();
+            assert_eq!(entry.lemma, "lemma");
+            assert_eq!(entry.form, "form");
+            assert_eq!(entry.features.as_str(), "N;ACC;SG;MASC;INAN");
         }
 
         #[test]

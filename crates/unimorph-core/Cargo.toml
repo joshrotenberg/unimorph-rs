@@ -22,6 +22,11 @@ tracing.workspace = true
 parquet = { workspace = true, optional = true }
 arrow = { workspace = true, optional = true }
 
+# Compression support
+flate2 = "1"
+xz2 = "0.1"
+zip = "2"
+
 [features]
 default = []
 parquet = ["dep:parquet", "dep:arrow"]

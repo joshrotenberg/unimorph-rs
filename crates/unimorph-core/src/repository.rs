@@ -27,6 +27,7 @@
 //! }
 //! ```
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use futures_util::StreamExt;
@@ -61,6 +62,51 @@ pub struct DownloadProgress {
 }
 
 const UNIMORPH_RAW_URL: &str = "https://raw.githubusercontent.com/unimorph";
+
+/// Decompress content based on file extension.
+///
+/// Supports `.xz` (LZMA), `.gz` (gzip), and `.zip` formats.
+/// Plain text files are returned as-is after UTF-8 conversion.
+fn decompress_content(filename: &str, bytes: &[u8]) -> Result<String> {
+    if filename.ends_with(".xz") {
+        debug!(filename, "decompressing XZ/LZMA content");
+        let mut decoder = xz2::read::XzDecoder::new(bytes);
+        let mut content = String::new();
+        decoder
+            .read_to_string(&mut content)
+            .map_err(|e| Error::DecompressionFailed(format!("XZ decompression failed: {}", e)))?;
+        Ok(content)
+    } else if filename.ends_with(".gz") {
+        debug!(filename, "decompressing gzip content");
+        let mut decoder = flate2::read::GzDecoder::new(bytes);
+        let mut content = String::new();
+        decoder
+            .read_to_string(&mut content)
+            .map_err(|e| Error::DecompressionFailed(format!("gzip decompression failed: {}", e)))?;
+        Ok(content)
+    } else if filename.ends_with(".zip") {
+        debug!(filename, "extracting ZIP content");
+        let cursor = std::io::Cursor::new(bytes);
+        let mut archive = zip::ZipArchive::new(cursor)
+            .map_err(|e| Error::DecompressionFailed(format!("ZIP archive error: {}", e)))?;
+        if archive.is_empty() {
+            return Err(Error::DecompressionFailed(
+                "ZIP archive is empty".to_string(),
+            ));
+        }
+        let mut file = archive
+            .by_index(0)
+            .map_err(|e| Error::DecompressionFailed(format!("ZIP extraction error: {}", e)))?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)
+            .map_err(|e| Error::DecompressionFailed(format!("ZIP read error: {}", e)))?;
+        Ok(content)
+    } else {
+        // Plain text - convert from UTF-8
+        String::from_utf8(bytes.to_vec())
+            .map_err(|e| Error::DecompressionFailed(format!("UTF-8 conversion failed: {}", e)))
+    }
+}
 
 /// Repository for managing UniMorph datasets.
 ///
@@ -292,31 +338,68 @@ impl Repository {
     }
 }
 
-/// Get the file patterns to download for a language.
+/// Get the file pattern alternatives to try for a language.
 ///
-/// Most languages have a single file named after the language code,
-/// but some (like Finnish) have multiple files.
-fn get_file_patterns(lang: &LangCode) -> Vec<String> {
+/// Returns a list of alternatives to try in order. Each alternative is a list of
+/// files that together make up the complete dataset. For most languages, this is
+/// a single file, but some (like Finnish) have multiple files.
+///
+/// Compressed versions (.xz, .gz) are tried first since they may contain more
+/// complete data when the uncompressed version exceeds GitHub's file size limits.
+fn get_file_alternatives(lang: &LangCode) -> Vec<Vec<String>> {
     match lang.as_str() {
         // Languages known to have split files
-        "fin" => vec!["fin.1".to_string(), "fin.2".to_string()],
-        // Default: single file named after the language code
-        _ => vec![lang.as_str().to_string()],
+        "fin" => vec![vec!["fin.1".to_string(), "fin.2".to_string()]],
+        // Default: try compressed versions first, then uncompressed
+        _ => vec![
+            vec![format!("{}.xz", lang.as_str())],
+            vec![format!("{}.gz", lang.as_str())],
+            vec![lang.as_str().to_string()],
+        ],
     }
 }
 
 /// Download a language dataset from GitHub.
+///
+/// Tries multiple file alternatives in order (compressed first, then uncompressed).
+/// Automatically decompresses `.xz`, `.gz`, and `.zip` files.
 #[instrument(level = "debug")]
 async fn download_language(lang: &LangCode) -> Result<String> {
     let client = reqwest::Client::new();
-    let patterns = get_file_patterns(lang);
+    let alternatives = get_file_alternatives(lang);
+
+    debug!(lang = %lang, alternatives = ?alternatives, "downloading from GitHub");
+
+    // Try each alternative in order
+    for files in &alternatives {
+        match try_download_files(&client, lang, files).await {
+            Ok(content) => return Ok(content),
+            Err(e) => {
+                debug!(files = ?files, error = %e, "alternative failed, trying next");
+                continue;
+            }
+        }
+    }
+
+    Err(Error::DownloadFailed(format!(
+        "No data files found for language: {}",
+        lang.as_str()
+    )))
+}
+
+/// Try to download a specific set of files for a language.
+///
+/// Returns the concatenated, decompressed content if all files are found.
+/// Returns an error if any file is not found or fails to download.
+async fn try_download_files(
+    client: &reqwest::Client,
+    lang: &LangCode,
+    files: &[String],
+) -> Result<String> {
     let mut all_content = String::new();
-    let mut found_any = false;
 
-    debug!(lang = %lang, patterns = ?patterns, "downloading from GitHub");
-
-    for pattern in &patterns {
-        let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), pattern);
+    for filename in files {
+        let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), filename);
 
         debug!(url = %url, "fetching file");
         let response = client.get(&url).send().await?;
@@ -327,8 +410,8 @@ async fn download_language(lang: &LangCode) -> Result<String> {
         }
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            debug!(url = %url, "file not found, trying next pattern");
-            continue;
+            debug!(url = %url, "file not found");
+            return Err(Error::DownloadFailed(format!("File not found: {}", url)));
         }
 
         if !response.status().is_success() {
@@ -339,42 +422,71 @@ async fn download_language(lang: &LangCode) -> Result<String> {
             )));
         }
 
-        let content = response.text().await?;
-        let bytes = content.len();
-        debug!(url = %url, bytes, "downloaded file");
+        // Download as bytes for decompression
+        let bytes = response.bytes().await?;
+        debug!(url = %url, bytes = bytes.len(), "downloaded file");
+
+        // Decompress based on file extension
+        let content = decompress_content(filename, &bytes)?;
+
         all_content.push_str(&content);
         if !content.ends_with('\n') {
             all_content.push('\n');
         }
-        found_any = true;
-    }
-
-    if !found_any {
-        return Err(Error::DownloadFailed(format!(
-            "No data files found for language: {}",
-            lang.as_str()
-        )));
     }
 
     Ok(all_content)
 }
 
 /// Download a language dataset from GitHub with progress reporting.
+///
+/// Tries multiple file alternatives in order (compressed first, then uncompressed).
+/// Automatically decompresses `.xz`, `.gz`, and `.zip` files.
 #[instrument(level = "debug", skip(on_progress))]
 async fn download_language_with_progress<F>(lang: &LangCode, on_progress: &F) -> Result<String>
 where
     F: Fn(DownloadProgress) + Send + Sync,
 {
     let client = reqwest::Client::new();
-    let patterns = get_file_patterns(lang);
-    let total_files = patterns.len();
+    let alternatives = get_file_alternatives(lang);
+
+    debug!(lang = %lang, alternatives = ?alternatives, "downloading from GitHub with progress");
+
+    // Try each alternative in order
+    for files in &alternatives {
+        match try_download_files_with_progress(&client, lang, files, on_progress).await {
+            Ok(content) => return Ok(content),
+            Err(e) => {
+                debug!(files = ?files, error = %e, "alternative failed, trying next");
+                continue;
+            }
+        }
+    }
+
+    Err(Error::DownloadFailed(format!(
+        "No data files found for language: {}",
+        lang.as_str()
+    )))
+}
+
+/// Try to download a specific set of files for a language with progress reporting.
+///
+/// Returns the concatenated, decompressed content if all files are found.
+/// Returns an error if any file is not found or fails to download.
+async fn try_download_files_with_progress<F>(
+    client: &reqwest::Client,
+    lang: &LangCode,
+    files: &[String],
+    on_progress: &F,
+) -> Result<String>
+where
+    F: Fn(DownloadProgress) + Send + Sync,
+{
+    let total_files = files.len();
     let mut all_content = String::new();
-    let mut found_any = false;
 
-    debug!(lang = %lang, patterns = ?patterns, "downloading from GitHub with progress");
-
-    for (file_index, pattern) in patterns.iter().enumerate() {
-        let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), pattern);
+    for (file_index, filename) in files.iter().enumerate() {
+        let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), filename);
 
         debug!(url = %url, "fetching file");
         let response = client.get(&url).send().await?;
@@ -385,8 +497,8 @@ where
         }
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            debug!(url = %url, "file not found, trying next pattern");
-            continue;
+            debug!(url = %url, "file not found");
+            return Err(Error::DownloadFailed(format!("File not found: {}", url)));
         }
 
         if !response.status().is_success() {
@@ -399,14 +511,14 @@ where
 
         let total_bytes = response.content_length();
         let mut downloaded_bytes: u64 = 0;
-        let mut content = Vec::new();
+        let mut bytes = Vec::new();
 
         // Send initial progress
         on_progress(DownloadProgress {
             phase: DownloadPhase::Downloading,
             total_bytes,
             downloaded_bytes,
-            current_file: pattern.clone(),
+            current_file: filename.clone(),
             total_files,
             current_file_index: file_index + 1,
         });
@@ -416,32 +528,27 @@ where
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
             downloaded_bytes += chunk.len() as u64;
-            content.extend_from_slice(&chunk);
+            bytes.extend_from_slice(&chunk);
 
             on_progress(DownloadProgress {
                 phase: DownloadPhase::Downloading,
                 total_bytes,
                 downloaded_bytes,
-                current_file: pattern.clone(),
+                current_file: filename.clone(),
                 total_files,
                 current_file_index: file_index + 1,
             });
         }
 
-        let text = String::from_utf8_lossy(&content);
-        debug!(url = %url, bytes = content.len(), "downloaded file");
-        all_content.push_str(&text);
-        if !text.ends_with('\n') {
+        debug!(url = %url, bytes = bytes.len(), "downloaded file");
+
+        // Decompress based on file extension
+        let content = decompress_content(filename, &bytes)?;
+
+        all_content.push_str(&content);
+        if !content.ends_with('\n') {
             all_content.push('\n');
         }
-        found_any = true;
-    }
-
-    if !found_any {
-        return Err(Error::DownloadFailed(format!(
-            "No data files found for language: {}",
-            lang.as_str()
-        )));
     }
 
     Ok(all_content)
@@ -510,25 +617,122 @@ mod tests {
     }
 
     #[test]
-    fn file_patterns() {
+    fn file_alternatives() {
         let ita: LangCode = "ita".parse().unwrap();
         let fin: LangCode = "fin".parse().unwrap();
 
-        assert_eq!(get_file_patterns(&ita), vec!["ita"]);
-        assert_eq!(get_file_patterns(&fin), vec!["fin.1", "fin.2"]);
+        // Italian should try compressed first, then uncompressed
+        let ita_alts = get_file_alternatives(&ita);
+        assert_eq!(ita_alts.len(), 3);
+        assert_eq!(ita_alts[0], vec!["ita.xz"]);
+        assert_eq!(ita_alts[1], vec!["ita.gz"]);
+        assert_eq!(ita_alts[2], vec!["ita"]);
+
+        // Finnish has split files
+        let fin_alts = get_file_alternatives(&fin);
+        assert_eq!(fin_alts.len(), 1);
+        assert_eq!(fin_alts[0], vec!["fin.1", "fin.2"]);
     }
 
-    // Integration tests that require network would go here with #[ignore]
-    // #[tokio::test]
-    // #[ignore]
-    // async fn download_italian() {
-    //     let temp_dir = TempDir::new().unwrap();
-    //     let mut repo = Repository::with_cache_dir(temp_dir.path()).unwrap();
-    //
-    //     let downloaded = repo.ensure("ita").await.unwrap();
-    //     assert!(downloaded);
-    //
-    //     let downloaded_again = repo.ensure("ita").await.unwrap();
-    //     assert!(!downloaded_again); // Should be cached
-    // }
+    #[test]
+    fn decompress_plain_text() {
+        let content = b"lemma\tform\tfeatures\n";
+        let result = decompress_content("test.txt", content).unwrap();
+        assert_eq!(result, "lemma\tform\tfeatures\n");
+    }
+
+    #[test]
+    fn decompress_gzip() {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+
+        let original = "lemma\tform\tV;IND;PRS\n";
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(original.as_bytes()).unwrap();
+        let compressed = encoder.finish().unwrap();
+
+        let result = decompress_content("test.gz", &compressed).unwrap();
+        assert_eq!(result, original);
+    }
+
+    #[test]
+    fn decompress_xz() {
+        use std::io::Write;
+        use xz2::write::XzEncoder;
+
+        let original = "lemma\tform\tV;IND;PRS\n";
+        let mut encoder = XzEncoder::new(Vec::new(), 6);
+        encoder.write_all(original.as_bytes()).unwrap();
+        let compressed = encoder.finish().unwrap();
+
+        let result = decompress_content("test.xz", &compressed).unwrap();
+        assert_eq!(result, original);
+    }
+
+    // Integration tests that require network access
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn download_italian_uncompressed() {
+        // Italian uses uncompressed format
+        let temp_dir = TempDir::new().unwrap();
+        let mut repo = Repository::with_cache_dir(temp_dir.path()).unwrap();
+
+        let downloaded = repo.ensure("ita").await.unwrap();
+        assert!(downloaded);
+
+        // Verify data was imported
+        let stats = repo.store().stats("ita").unwrap().unwrap();
+        assert!(stats.total_entries > 0);
+
+        // Second call should use cache
+        let downloaded_again = repo.ensure("ita").await.unwrap();
+        assert!(!downloaded_again);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn download_polish_compressed_xz() {
+        // Polish uses .xz compression due to large file size
+        let temp_dir = TempDir::new().unwrap();
+        let mut repo = Repository::with_cache_dir(temp_dir.path()).unwrap();
+
+        let downloaded = repo.ensure("pol").await.unwrap();
+        assert!(downloaded);
+
+        // Verify data was imported
+        let stats = repo.store().stats("pol").unwrap().unwrap();
+        assert!(stats.total_entries > 0);
+        // Polish is a large dataset
+        assert!(stats.total_entries > 100_000);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn download_finnish_split_files() {
+        // Finnish has split files (fin.1, fin.2)
+        let temp_dir = TempDir::new().unwrap();
+        let mut repo = Repository::with_cache_dir(temp_dir.path()).unwrap();
+
+        let downloaded = repo.ensure("fin").await.unwrap();
+        assert!(downloaded);
+
+        // Verify data was imported
+        let stats = repo.store().stats("fin").unwrap().unwrap();
+        assert!(stats.total_entries > 0);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn download_czech_small() {
+        // Czech is a relatively small dataset, good for quick tests
+        let temp_dir = TempDir::new().unwrap();
+        let mut repo = Repository::with_cache_dir(temp_dir.path()).unwrap();
+
+        let downloaded = repo.ensure("ces").await.unwrap();
+        assert!(downloaded);
+
+        let stats = repo.store().stats("ces").unwrap().unwrap();
+        assert!(stats.total_entries > 0);
+    }
 }
