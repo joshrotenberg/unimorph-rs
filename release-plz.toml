@@ -1,11 +1,5 @@
 [workspace]
 # Use git-cliff for changelog generation
 changelog_config = "cliff.toml"
-# Create GitHub releases
-git_release_enable = true
-# Git release body template
-git_release_body = """
-{{ changelog }}
-
-**Full Changelog**: https://github.com/joshrotenberg/unimorph-rs/compare/{{ previous_tag }}...{{ tag }}
-"""
+# Disable GitHub release creation - cargo-dist handles this with binary artifacts
+git_release_enable = false
