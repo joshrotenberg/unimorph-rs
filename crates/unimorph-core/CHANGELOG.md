@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-01-19
+
+### Bug Fixes
+
+- Correct README CLI examples and handle trailing tabs in TSV ([#88](https://github.com/joshrotenberg/unimorph-rs/pull/88))
+
+### Features
+
+- Add detailed import reporting with compression/LFS metadata ([#92](https://github.com/joshrotenberg/unimorph-rs/pull/92))
+
+
+
 ## [0.2.0] - 2026-01-19
 
 ### Documentation
