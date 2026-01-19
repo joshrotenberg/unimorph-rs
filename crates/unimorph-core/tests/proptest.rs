@@ -159,7 +159,8 @@ mod edge_cases {
     fn tsv_line_wrong_columns() {
         assert!(Entry::parse_line("one", 1).is_err());
         assert!(Entry::parse_line("one\ttwo", 1).is_err());
-        assert!(Entry::parse_line("one\ttwo\tthree\tfour", 1).is_err());
+        // 4+ columns are allowed (merged into features)
+        assert!(Entry::parse_line("one\ttwo\tthree\tfour", 1).is_ok());
     }
 
     #[test]

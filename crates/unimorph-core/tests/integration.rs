@@ -251,18 +251,20 @@ mod parsing_edge_cases {
     }
 
     #[test]
-    fn parse_lenient_skips_bad_lines() {
+    fn parse_with_report_skips_bad_lines() {
         let data = "good\tentry\tV;IND\nbad line\nanother\tgood\tN;SG\n";
-        let (entries, skipped) = Entry::parse_tsv_lenient(data);
+        let (entries, report) = Entry::parse_tsv_with_report(data);
         assert_eq!(entries.len(), 2);
-        assert_eq!(skipped, 1);
+        assert_eq!(report.malformed_count, 1);
+        assert_eq!(report.malformed[0].line_num, 2);
     }
 
     #[test]
-    fn parse_lenient_handles_empty_lines() {
+    fn parse_with_report_handles_empty_lines() {
         let data = "good\tentry\tV;IND\n\n\nanother\tgood\tN;SG\n";
-        let (entries, skipped) = Entry::parse_tsv_lenient(data);
+        let (entries, report) = Entry::parse_tsv_with_report(data);
         assert_eq!(entries.len(), 2);
-        assert_eq!(skipped, 0);
+        assert_eq!(report.malformed_count, 0);
+        assert_eq!(report.blank_lines, 2);
     }
 }
