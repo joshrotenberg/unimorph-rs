@@ -416,6 +416,20 @@ impl DatasetStats {
 }
 
 /// A single malformed entry with details about why it failed.
+///
+/// When parsing TSV data, entries that fail validation are captured here
+/// with their line number and reason for rejection.
+///
+/// # Example
+///
+/// ```
+/// use unimorph_core::MalformedEntry;
+///
+/// let entry = MalformedEntry::new(42, "empty form".to_string(), "lemma\t\tV;IND");
+/// assert_eq!(entry.line_num, 42);
+/// assert_eq!(entry.reason, "empty form");
+/// println!("{}", entry); // "line 42: empty form (lemma\t\tV;IND)"
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MalformedEntry {
     /// Line number (1-indexed).
@@ -456,6 +470,23 @@ impl fmt::Display for MalformedEntry {
 }
 
 /// Compression format used for a dataset file.
+///
+/// UniMorph datasets may be distributed in various formats depending on size:
+/// - Small datasets: plain text (no compression)
+/// - Large datasets: `.xz` compression (Czech, Polish, Slovak, Ukrainian)
+/// - Archives: `.zip` (Russian segmentations, Sanskrit)
+///
+/// # Example
+///
+/// ```
+/// use unimorph_core::CompressionFormat;
+///
+/// let fmt = CompressionFormat::Xz;
+/// assert_eq!(fmt.to_string(), "xz");
+///
+/// let default = CompressionFormat::default();
+/// assert_eq!(default, CompressionFormat::None);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompressionFormat {
     /// No compression (raw text).
@@ -483,6 +514,26 @@ impl fmt::Display for CompressionFormat {
 /// Report from parsing TSV content.
 ///
 /// Provides detailed breakdown of what was parsed, skipped, and why.
+/// Use [`Entry::parse_tsv_with_report`] to get both parsed entries and this report.
+///
+/// # Example
+///
+/// ```
+/// use unimorph_core::Entry;
+///
+/// let content = "lemma1\tform1\tV;IND\n\nbad line\nlemma2\tform2\tN;SG\n";
+/// let (entries, report) = Entry::parse_tsv_with_report(content);
+///
+/// assert_eq!(entries.len(), 2);
+/// assert_eq!(report.valid_entries, 2);
+/// assert_eq!(report.blank_lines, 1);
+/// assert_eq!(report.malformed_count, 1);
+///
+/// // First 10 malformed entries have details
+/// if let Some(bad) = report.malformed.first() {
+///     println!("Line {}: {}", bad.line_num, bad.reason);
+/// }
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct ParseReport {
     /// Number of valid entries parsed.
