@@ -10,10 +10,8 @@ license = "Apache-2.0"
 repository = "https://github.com/joshrotenberg/unimorph-rs"
 
 [workspace.dependencies]
-# Storage backends
+# Storage
 rusqlite = { version = "0.34", features = ["bundled"] }
-duckdb = { version = "1.2", features = ["bundled"] }
-polars = { version = "0.46", features = ["lazy", "csv", "parquet"] }
 
 # Core
 thiserror = "2"
@@ -24,9 +22,6 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["stream", "json"] }
 futures-util = "0.3"
-
-# Benchmarking
-criterion = { version = "0.5", features = ["html_reports"] }
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
