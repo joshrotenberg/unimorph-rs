@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-01-19
+
+### Documentation
+
+- Document transparent compression support ([#85](https://github.com/joshrotenberg/unimorph-rs/pull/85))
+
+### Features
+
+- Add transparent decompression for compressed UniMorph files ([#83](https://github.com/joshrotenberg/unimorph-rs/pull/83))
+- Add Git LFS support for large files ([#86](https://github.com/joshrotenberg/unimorph-rs/pull/86))
+
+
+
 ## [0.1.8] - 2026-01-07
 
 

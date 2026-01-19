@@ -20,7 +20,7 @@ default = []
 parquet = ["unimorph-core/parquet"]
 
 [dependencies]
-unimorph-core = { path = "../unimorph-core", version = "0.1" }
+unimorph-core = { path = "../unimorph-core", version = "0.2" }
 clap.workspace = true
 clap_complete = "4"
 tokio.workspace = true
