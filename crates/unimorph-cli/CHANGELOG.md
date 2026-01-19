@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-01-19
+
+### Documentation
+
+- Document transparent compression support ([#85](https://github.com/joshrotenberg/unimorph-rs/pull/85))
+
+
+
 ## [0.1.8] - 2026-01-07
 
 ### Bug Fixes
