@@ -65,13 +65,13 @@ cargo install --path crates/unimorph-cli  # directory still named unimorph-cli
 unimorph download spa
 
 # Look up all forms of a verb
-unimorph inflect spa hablar
+unimorph inflect -l spa hablar
 
 # Analyze a surface form (reverse lookup)
-unimorph analyze spa hablo
+unimorph analyze -l spa hablo
 
 # Search with filters
-unimorph search spa --lemma "habl*" --contains V,IND
+unimorph search -l spa --lemma "habl%" --contains V,IND
 
 # Dataset statistics
 unimorph stats spa

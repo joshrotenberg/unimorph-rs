@@ -260,12 +260,17 @@ impl Entry {
         let lemma = parts[0];
         let form = parts[1];
         // Merge columns 3+ into features (some languages have extra feature columns)
+        // Filter out empty parts to handle trailing tabs (e.g., "lemma\tform\tfeatures\t")
         let features_str = if parts.len() > 3 {
-            parts[2..].join(";")
+            parts[2..]
+                .iter()
+                .filter(|p| !p.is_empty())
+                .copied()
+                .collect::<Vec<_>>()
+                .join(";")
         } else {
             parts[2].to_string()
         };
-        let features_str = features_str.as_str();
 
         if lemma.is_empty() {
             return Err(Error::MalformedEntry {
@@ -281,7 +286,7 @@ impl Entry {
             });
         }
 
-        let features = FeatureBundle::new(features_str).map_err(|_| Error::MalformedEntry {
+        let features = FeatureBundle::new(&features_str).map_err(|_| Error::MalformedEntry {
             line: line_num,
             reason: format!("invalid features: {}", features_str),
         })?;
@@ -534,6 +539,15 @@ mod tests {
             assert_eq!(entry.lemma, "lemma");
             assert_eq!(entry.form, "form");
             assert_eq!(entry.features.as_str(), "N;ACC;SG;MASC;INAN");
+        }
+
+        #[test]
+        fn trailing_tab_ignored() {
+            // Czech files have trailing tabs (e.g., "lemma\tform\tfeatures\t")
+            let entry = Entry::parse_line("lemma\tform\tADJ;FEM;INS;DU\t", 1).unwrap();
+            assert_eq!(entry.lemma, "lemma");
+            assert_eq!(entry.form, "form");
+            assert_eq!(entry.features.as_str(), "ADJ;FEM;INS;DU");
         }
 
         #[test]
