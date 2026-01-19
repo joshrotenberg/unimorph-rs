@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 use futures_util::StreamExt;
 use tracing::{debug, info, instrument, warn};
 
+use crate::types::CompressionFormat;
 use crate::{Entry, Error, LangCode, Result, Store};
 
 /// Phase of the download/import operation.
@@ -70,6 +71,34 @@ const GIT_LFS_PREFIX: &[u8] = b"version https://git-lfs.github.com/spec/v1";
 /// Check if bytes represent a Git LFS pointer file.
 fn is_lfs_pointer(bytes: &[u8]) -> bool {
     bytes.starts_with(GIT_LFS_PREFIX)
+}
+
+/// Result of downloading a language dataset.
+///
+/// Contains the content and metadata about how it was fetched.
+#[derive(Debug)]
+struct DownloadResult {
+    /// The decompressed content.
+    content: String,
+    /// The filename(s) that were downloaded.
+    filenames: Vec<String>,
+    /// Compression format detected.
+    compression: CompressionFormat,
+    /// Whether content was fetched from Git LFS.
+    from_lfs: bool,
+}
+
+/// Detect compression format from filename.
+fn detect_compression(filename: &str) -> CompressionFormat {
+    if filename.ends_with(".xz") {
+        CompressionFormat::Xz
+    } else if filename.ends_with(".gz") {
+        CompressionFormat::Gzip
+    } else if filename.ends_with(".zip") {
+        CompressionFormat::Zip
+    } else {
+        CompressionFormat::None
+    }
 }
 
 /// Decompress content based on file extension.
@@ -251,22 +280,48 @@ impl Repository {
         let commit_sha = fetch_commit_sha(lang).await.ok();
         debug!(lang = %lang, commit_sha = ?commit_sha, "fetched commit SHA");
 
-        let content = download_language(lang).await?;
-        let (entries, skipped) = Entry::parse_tsv_lenient(&content);
+        let download = download_language(lang).await?;
+        let (entries, mut report) = Entry::parse_tsv_with_report(&download.content);
 
-        if skipped > 0 {
+        // Populate report with download metadata
+        report.compression = download.compression;
+        report.from_lfs = download.from_lfs;
+        report.filename = Some(download.filenames.join(", "));
+
+        // Log detailed report
+        info!(
+            lang = %lang,
+            filename = ?download.filenames,
+            compression = %download.compression,
+            from_lfs = download.from_lfs,
+            valid_entries = report.valid_entries,
+            blank_lines = report.blank_lines,
+            malformed = report.malformed_count,
+            "parsed downloaded data"
+        );
+
+        if report.malformed_count > 0 {
             warn!(
                 lang = %lang,
-                skipped,
+                malformed = report.malformed_count,
                 "skipped malformed entries during import"
             );
+            for entry in &report.malformed {
+                warn!(
+                    lang = %lang,
+                    line = entry.line_num,
+                    reason = %entry.reason,
+                    "malformed entry"
+                );
+            }
+            if report.malformed_count > report.malformed.len() {
+                warn!(
+                    lang = %lang,
+                    additional = report.malformed_count - report.malformed.len(),
+                    "additional malformed entries not shown"
+                );
+            }
         }
-
-        debug!(
-            lang = %lang,
-            entries = entries.len(),
-            "parsed entries from downloaded data"
-        );
 
         let source_url = format!("https://github.com/unimorph/{}", lang.as_str());
 
@@ -295,7 +350,7 @@ impl Repository {
         let commit_sha = fetch_commit_sha(lang).await.ok();
         debug!(lang = %lang, commit_sha = ?commit_sha, "fetched commit SHA");
 
-        let content = download_language_with_progress(lang, &on_progress).await?;
+        let download = download_language_with_progress(lang, &on_progress).await?;
 
         // Signal import phase
         on_progress(DownloadProgress {
@@ -307,21 +362,47 @@ impl Repository {
             current_file_index: 0,
         });
 
-        let (entries, skipped) = Entry::parse_tsv_lenient(&content);
+        let (entries, mut report) = Entry::parse_tsv_with_report(&download.content);
 
-        if skipped > 0 {
+        // Populate report with download metadata
+        report.compression = download.compression;
+        report.from_lfs = download.from_lfs;
+        report.filename = Some(download.filenames.join(", "));
+
+        // Log detailed report
+        info!(
+            lang = %lang,
+            filename = ?download.filenames,
+            compression = %download.compression,
+            from_lfs = download.from_lfs,
+            valid_entries = report.valid_entries,
+            blank_lines = report.blank_lines,
+            malformed = report.malformed_count,
+            "parsed downloaded data"
+        );
+
+        if report.malformed_count > 0 {
             warn!(
                 lang = %lang,
-                skipped,
+                malformed = report.malformed_count,
                 "skipped malformed entries during import"
             );
+            for entry in &report.malformed {
+                warn!(
+                    lang = %lang,
+                    line = entry.line_num,
+                    reason = %entry.reason,
+                    "malformed entry"
+                );
+            }
+            if report.malformed_count > report.malformed.len() {
+                warn!(
+                    lang = %lang,
+                    additional = report.malformed_count - report.malformed.len(),
+                    "additional malformed entries not shown"
+                );
+            }
         }
-
-        debug!(
-            lang = %lang,
-            entries = entries.len(),
-            "parsed entries from downloaded data"
-        );
 
         let source_url = format!("https://github.com/unimorph/{}", lang.as_str());
 
@@ -373,7 +454,7 @@ fn get_file_alternatives(lang: &LangCode) -> Vec<Vec<String>> {
 /// Tries multiple file alternatives in order (compressed first, then uncompressed).
 /// Automatically decompresses `.xz`, `.gz`, and `.zip` files.
 #[instrument(level = "debug")]
-async fn download_language(lang: &LangCode) -> Result<String> {
+async fn download_language(lang: &LangCode) -> Result<DownloadResult> {
     let client = reqwest::Client::new();
     let alternatives = get_file_alternatives(lang);
 
@@ -382,7 +463,7 @@ async fn download_language(lang: &LangCode) -> Result<String> {
     // Try each alternative in order
     for files in &alternatives {
         match try_download_files(&client, lang, files).await {
-            Ok(content) => return Ok(content),
+            Ok(result) => return Ok(result),
             Err(e) => {
                 debug!(files = ?files, error = %e, "alternative failed, trying next");
                 continue;
@@ -398,15 +479,17 @@ async fn download_language(lang: &LangCode) -> Result<String> {
 
 /// Try to download a specific set of files for a language.
 ///
-/// Returns the concatenated, decompressed content if all files are found.
+/// Returns a DownloadResult with content and metadata if all files are found.
 /// Returns an error if any file is not found or fails to download.
 /// Automatically handles Git LFS pointer files by fetching from the media endpoint.
 async fn try_download_files(
     client: &reqwest::Client,
     lang: &LangCode,
     files: &[String],
-) -> Result<String> {
+) -> Result<DownloadResult> {
     let mut all_content = String::new();
+    let mut from_lfs = false;
+    let mut compression = CompressionFormat::None;
 
     for filename in files {
         let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), filename);
@@ -452,7 +535,11 @@ async fn try_download_files(
 
             bytes = lfs_response.bytes().await?;
             debug!(url = %lfs_url, bytes = bytes.len(), "downloaded LFS file");
+            from_lfs = true;
         }
+
+        // Track compression format
+        compression = detect_compression(filename);
 
         // Decompress based on file extension
         let content = decompress_content(filename, &bytes)?;
@@ -463,7 +550,12 @@ async fn try_download_files(
         }
     }
 
-    Ok(all_content)
+    Ok(DownloadResult {
+        content: all_content,
+        filenames: files.to_vec(),
+        compression,
+        from_lfs,
+    })
 }
 
 /// Download a language dataset from GitHub with progress reporting.
@@ -471,7 +563,10 @@ async fn try_download_files(
 /// Tries multiple file alternatives in order (compressed first, then uncompressed).
 /// Automatically decompresses `.xz`, `.gz`, and `.zip` files.
 #[instrument(level = "debug", skip(on_progress))]
-async fn download_language_with_progress<F>(lang: &LangCode, on_progress: &F) -> Result<String>
+async fn download_language_with_progress<F>(
+    lang: &LangCode,
+    on_progress: &F,
+) -> Result<DownloadResult>
 where
     F: Fn(DownloadProgress) + Send + Sync,
 {
@@ -483,7 +578,7 @@ where
     // Try each alternative in order
     for files in &alternatives {
         match try_download_files_with_progress(&client, lang, files, on_progress).await {
-            Ok(content) => return Ok(content),
+            Ok(result) => return Ok(result),
             Err(e) => {
                 debug!(files = ?files, error = %e, "alternative failed, trying next");
                 continue;
@@ -499,7 +594,7 @@ where
 
 /// Try to download a specific set of files for a language with progress reporting.
 ///
-/// Returns the concatenated, decompressed content if all files are found.
+/// Returns a DownloadResult with content and metadata if all files are found.
 /// Returns an error if any file is not found or fails to download.
 /// Automatically handles Git LFS pointer files by fetching from the media endpoint.
 async fn try_download_files_with_progress<F>(
@@ -507,12 +602,14 @@ async fn try_download_files_with_progress<F>(
     lang: &LangCode,
     files: &[String],
     on_progress: &F,
-) -> Result<String>
+) -> Result<DownloadResult>
 where
     F: Fn(DownloadProgress) + Send + Sync,
 {
     let total_files = files.len();
     let mut all_content = String::new();
+    let mut from_lfs = false;
+    let mut compression = CompressionFormat::None;
 
     for (file_index, filename) in files.iter().enumerate() {
         let url = format!("{}/{}/master/{}", UNIMORPH_RAW_URL, lang.as_str(), filename);
@@ -617,7 +714,11 @@ where
             }
 
             debug!(url = %lfs_url, bytes = bytes.len(), "downloaded LFS file");
+            from_lfs = true;
         }
+
+        // Track compression format
+        compression = detect_compression(filename);
 
         // Decompress based on file extension
         let content = decompress_content(filename, &bytes)?;
@@ -628,7 +729,12 @@ where
         }
     }
 
-    Ok(all_content)
+    Ok(DownloadResult {
+        content: all_content,
+        filenames: files.to_vec(),
+        compression,
+        from_lfs,
+    })
 }
 
 /// Fetch the latest commit SHA for a language repository.

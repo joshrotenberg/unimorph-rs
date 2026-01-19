@@ -31,15 +31,71 @@ repo.download("heb").await?;
 repo.download_with_options("heb", true).await?;
 ```
 
-### Compressed Files
+### Compressed Files and Git LFS
 
-Some large datasets (Polish, Czech, Ukrainian, etc.) are distributed as compressed `.xz` files due to GitHub file size limits. The repository automatically:
+Some large datasets are distributed differently due to GitHub file size limits:
+
+| Format | Languages | Notes |
+|--------|-----------|-------|
+| `.xz` (LZMA) | ces, pol, slk, ukr | Best compression for text |
+| `.zip` | rus (segmentations), san | Archive format |
+| Git LFS | ces (full MorfFlex) | For files > 100MB |
+
+The repository automatically:
 
 1. Tries compressed versions first (`.xz`, `.gz`)
 2. Falls back to uncompressed if not found
-3. Decompresses transparently before importing
+3. Detects Git LFS pointers and fetches from media endpoint
+4. Decompresses transparently before importing
 
 No special handling is needed - just call `download()` as usual.
+
+### Parse Reporting
+
+When parsing downloaded data, use `Entry::parse_tsv_with_report()` for detailed diagnostics:
+
+```rust
+use unimorph_core::{Entry, ParseReport, CompressionFormat};
+
+let content = "lemma\tform\tV;IND\nbad line\nlemma2\tform2\tN;SG\n";
+let (entries, report) = Entry::parse_tsv_with_report(content);
+
+println!("Valid entries: {}", report.valid_entries);
+println!("Blank lines: {}", report.blank_lines);
+println!("Malformed: {}", report.malformed_count);
+
+// Inspect malformed entries (first 10 stored)
+for entry in &report.malformed {
+    println!("  Line {}: {} - {}", 
+        entry.line_num, 
+        entry.reason,
+        entry.content
+    );
+}
+```
+
+The `ParseReport` includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `valid_entries` | `usize` | Successfully parsed entries |
+| `blank_lines` | `usize` | Empty lines (not an error) |
+| `malformed_count` | `usize` | Total entries that failed |
+| `malformed` | `Vec<MalformedEntry>` | Details for first 10 failures |
+| `compression` | `CompressionFormat` | Source file format |
+| `from_lfs` | `bool` | Whether fetched via Git LFS |
+| `filename` | `Option<String>` | Source filename(s) |
+
+The `CompressionFormat` enum:
+
+```rust
+pub enum CompressionFormat {
+    None,   // Plain text
+    Xz,     // .xz (LZMA)
+    Gzip,   // .gz
+    Zip,    // .zip archive
+}
+```
 
 ## Accessing the Store
 

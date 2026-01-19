@@ -53,4 +53,6 @@ pub use export::ParquetExportOptions;
 pub use query::QueryBuilder;
 pub use repository::{DownloadPhase, DownloadProgress, Repository};
 pub use store::Store;
-pub use types::{DatasetStats, Entry, FeatureBundle, LangCode};
+pub use types::{
+    CompressionFormat, DatasetStats, Entry, FeatureBundle, LangCode, MalformedEntry, ParseReport,
+};

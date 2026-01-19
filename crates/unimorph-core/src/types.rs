@@ -312,21 +312,43 @@ impl Entry {
     ///
     /// Returns a tuple of (valid entries, count of skipped entries).
     /// This is useful for importing real-world data that may have errors.
+    #[deprecated(
+        since = "0.2.1",
+        note = "use parse_tsv_with_report for detailed reporting"
+    )]
     pub fn parse_tsv_lenient(content: &str) -> (Vec<Self>, usize) {
+        let (entries, report) = Self::parse_tsv_with_report(content);
+        (entries, report.malformed_count)
+    }
+
+    /// Parse multiple TSV lines with detailed reporting.
+    ///
+    /// Returns valid entries and a detailed report of what was parsed,
+    /// including blank lines, malformed entries with reasons, etc.
+    pub fn parse_tsv_with_report(content: &str) -> (Vec<Self>, ParseReport) {
         let mut entries = Vec::new();
-        let mut skipped = 0;
+        let mut report = ParseReport::new();
 
         for (i, line) in content.lines().enumerate() {
             if line.trim().is_empty() {
+                report.blank_lines += 1;
                 continue;
             }
             match Self::parse_line(line, i + 1) {
-                Ok(entry) => entries.push(entry),
-                Err(_) => skipped += 1,
+                Ok(entry) => {
+                    entries.push(entry);
+                    report.valid_entries += 1;
+                }
+                Err(Error::MalformedEntry { reason, .. }) => {
+                    report.add_malformed(i + 1, reason, line);
+                }
+                Err(_) => {
+                    report.add_malformed(i + 1, "unknown error".to_string(), line);
+                }
             }
         }
 
-        (entries, skipped)
+        (entries, report)
     }
 }
 
@@ -390,6 +412,209 @@ impl DatasetStats {
             unique_forms: forms.len(),
             unique_features: features.len(),
         }
+    }
+}
+
+/// A single malformed entry with details about why it failed.
+///
+/// When parsing TSV data, entries that fail validation are captured here
+/// with their line number and reason for rejection.
+///
+/// # Example
+///
+/// ```
+/// use unimorph_core::MalformedEntry;
+///
+/// let entry = MalformedEntry::new(42, "empty form".to_string(), "lemma\t\tV;IND");
+/// assert_eq!(entry.line_num, 42);
+/// assert_eq!(entry.reason, "empty form");
+/// println!("{}", entry); // "line 42: empty form (lemma\t\tV;IND)"
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MalformedEntry {
+    /// Line number (1-indexed).
+    pub line_num: usize,
+    /// The reason the entry was rejected.
+    pub reason: String,
+    /// The original line content (truncated if too long).
+    pub content: String,
+}
+
+impl MalformedEntry {
+    /// Maximum length of content to store (to avoid memory bloat).
+    const MAX_CONTENT_LEN: usize = 100;
+
+    /// Create a new malformed entry record.
+    pub fn new(line_num: usize, reason: String, content: &str) -> Self {
+        let content = if content.len() > Self::MAX_CONTENT_LEN {
+            format!("{}...", &content[..Self::MAX_CONTENT_LEN])
+        } else {
+            content.to_string()
+        };
+        Self {
+            line_num,
+            reason,
+            content,
+        }
+    }
+}
+
+impl fmt::Display for MalformedEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "line {}: {} ({})",
+            self.line_num, self.reason, self.content
+        )
+    }
+}
+
+/// Compression format used for a dataset file.
+///
+/// UniMorph datasets may be distributed in various formats depending on size:
+/// - Small datasets: plain text (no compression)
+/// - Large datasets: `.xz` compression (Czech, Polish, Slovak, Ukrainian)
+/// - Archives: `.zip` (Russian segmentations, Sanskrit)
+///
+/// # Example
+///
+/// ```
+/// use unimorph_core::CompressionFormat;
+///
+/// let fmt = CompressionFormat::Xz;
+/// assert_eq!(fmt.to_string(), "xz");
+///
+/// let default = CompressionFormat::default();
+/// assert_eq!(default, CompressionFormat::None);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CompressionFormat {
+    /// No compression (raw text).
+    #[default]
+    None,
+    /// XZ/LZMA compression (.xz).
+    Xz,
+    /// Gzip compression (.gz).
+    Gzip,
+    /// ZIP archive (.zip).
+    Zip,
+}
+
+impl fmt::Display for CompressionFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::None => write!(f, "none"),
+            Self::Xz => write!(f, "xz"),
+            Self::Gzip => write!(f, "gzip"),
+            Self::Zip => write!(f, "zip"),
+        }
+    }
+}
+
+/// Report from parsing TSV content.
+///
+/// Provides detailed breakdown of what was parsed, skipped, and why.
+/// Use [`Entry::parse_tsv_with_report`] to get both parsed entries and this report.
+///
+/// # Example
+///
+/// ```
+/// use unimorph_core::Entry;
+///
+/// let content = "lemma1\tform1\tV;IND\n\nbad line\nlemma2\tform2\tN;SG\n";
+/// let (entries, report) = Entry::parse_tsv_with_report(content);
+///
+/// assert_eq!(entries.len(), 2);
+/// assert_eq!(report.valid_entries, 2);
+/// assert_eq!(report.blank_lines, 1);
+/// assert_eq!(report.malformed_count, 1);
+///
+/// // First 10 malformed entries have details
+/// if let Some(bad) = report.malformed.first() {
+///     println!("Line {}: {}", bad.line_num, bad.reason);
+/// }
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct ParseReport {
+    /// Number of valid entries parsed.
+    pub valid_entries: usize,
+    /// Number of blank lines skipped.
+    pub blank_lines: usize,
+    /// Number of duplicate entries (same lemma/form/features).
+    pub duplicates: usize,
+    /// Malformed entries with details (capped to avoid memory issues).
+    pub malformed: Vec<MalformedEntry>,
+    /// Total count of malformed entries (may exceed malformed.len()).
+    pub malformed_count: usize,
+    /// Compression format of the source file.
+    pub compression: CompressionFormat,
+    /// Whether the file was fetched via Git LFS.
+    pub from_lfs: bool,
+    /// Original filename that was downloaded.
+    pub filename: Option<String>,
+}
+
+impl ParseReport {
+    /// Maximum number of malformed entries to store details for.
+    const MAX_MALFORMED_SAMPLES: usize = 10;
+
+    /// Create a new empty report.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Record a malformed entry.
+    pub fn add_malformed(&mut self, line_num: usize, reason: String, content: &str) {
+        self.malformed_count += 1;
+        if self.malformed.len() < Self::MAX_MALFORMED_SAMPLES {
+            self.malformed
+                .push(MalformedEntry::new(line_num, reason, content));
+        }
+    }
+
+    /// Total lines processed (valid + blank + malformed).
+    pub fn total_lines(&self) -> usize {
+        self.valid_entries + self.blank_lines + self.malformed_count
+    }
+
+    /// Check if any issues were found.
+    pub fn has_issues(&self) -> bool {
+        self.malformed_count > 0
+    }
+}
+
+impl fmt::Display for ParseReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Parse report:")?;
+        if let Some(ref filename) = self.filename {
+            write!(f, "  Source:           {}", filename)?;
+            if self.compression != CompressionFormat::None {
+                write!(f, " ({})", self.compression)?;
+            }
+            if self.from_lfs {
+                write!(f, " [LFS]")?;
+            }
+            writeln!(f)?;
+        }
+        writeln!(f, "  Valid entries:    {}", self.valid_entries)?;
+        writeln!(f, "  Blank lines:      {}", self.blank_lines)?;
+        if self.duplicates > 0 {
+            writeln!(f, "  Duplicates:       {}", self.duplicates)?;
+        }
+        if self.malformed_count > 0 {
+            writeln!(f, "  Malformed:        {}", self.malformed_count)?;
+            for entry in &self.malformed {
+                writeln!(f, "    {}", entry)?;
+            }
+            if self.malformed_count > self.malformed.len() {
+                writeln!(
+                    f,
+                    "    ... and {} more",
+                    self.malformed_count - self.malformed.len()
+                )?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -577,12 +802,20 @@ mod tests {
         }
 
         #[test]
-        fn parse_lenient() {
+        fn parse_with_report() {
             let content =
                 "parlare\tparlo\tV;IND;PRS;1;SG\nbad line\nparlare\tparli\tV;IND;PRS;2;SG\n";
-            let (entries, skipped) = Entry::parse_tsv_lenient(content);
+            let (entries, report) = Entry::parse_tsv_with_report(content);
             assert_eq!(entries.len(), 2);
-            assert_eq!(skipped, 1);
+            assert_eq!(report.valid_entries, 2);
+            assert_eq!(report.malformed_count, 1);
+            assert_eq!(report.malformed.len(), 1);
+            assert_eq!(report.malformed[0].line_num, 2);
+            assert!(
+                report.malformed[0]
+                    .reason
+                    .contains("expected at least 3 columns")
+            );
         }
 
         #[test]

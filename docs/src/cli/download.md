@@ -84,13 +84,56 @@ export UNIMORPH_LANG=heb
 unimorph download  # Downloads Hebrew
 ```
 
+## Verbose Output
+
+Use `-v` for detailed import reporting:
+
+```bash
+unimorph download spa --force -v
+```
+
+This shows:
+
+```
+parsed downloaded data lang=spa filename=["spa"] compression=none from_lfs=false valid_entries=1196224 blank_lines=0 malformed=21
+malformed entry lang=spa line=80710 reason=empty form
+malformed entry lang=spa line=134234 reason=empty form
+...
+additional malformed entries not shown lang=spa additional=11
+```
+
+### Understanding the Output
+
+| Field | Description |
+|-------|-------------|
+| `filename` | Source file(s) downloaded |
+| `compression` | Format: `none`, `xz`, `gzip`, or `zip` |
+| `from_lfs` | Whether fetched via Git LFS (large files) |
+| `valid_entries` | Successfully parsed entries |
+| `blank_lines` | Empty lines skipped (not an error) |
+| `malformed` | Entries that failed to parse |
+
+### Malformed Entry Details
+
+When entries fail to parse, the first 10 are logged with:
+- **Line number**: Where in the source file
+- **Reason**: Why it failed (e.g., "empty form", "expected at least 3 columns")
+
+Common reasons for malformed entries:
+- `empty form` - The inflected form field is blank
+- `empty lemma` - The dictionary form field is blank
+- `expected at least 3 columns` - Line doesn't have lemma, form, and features
+
+These indicate upstream data quality issues in the UniMorph repository.
+
 ## Notes
 
 - Language codes are ISO 639-3 (3 lowercase letters)
 - Use `unimorph list --available` to see all available languages
 - Downloads are atomic: partial downloads won't corrupt your data
 - The first download creates the database at `~/.cache/unimorph/datasets.db`
-- **Compressed files are handled automatically**: Some large datasets (e.g., Polish, Czech, Ukrainian) are distributed as `.xz` compressed files. The CLI transparently downloads and decompresses these.
+- **Compressed files**: Large datasets (Polish, Czech, Ukrainian, Slovak) use `.xz` compression - handled automatically
+- **Git LFS**: Very large files (like Czech's full MorfFlex dataset) use Git LFS - also handled automatically
 
 ## See Also
 
