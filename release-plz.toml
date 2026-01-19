@@ -9,10 +9,3 @@ git_release_body = """
 
 **Full Changelog**: https://github.com/joshrotenberg/unimorph-rs/compare/{{ previous_tag }}...{{ tag }}
 """
-
-# Don't publish the benchmark crate
-[[package]]
-name = "unimorph-bench"
-publish = false
-changelog_update = false
-git_release_enable = false
